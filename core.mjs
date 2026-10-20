@@ -1,5 +1,6 @@
 export const STORAGE_KEY = 'pawn-kh-v1';
 export const MAX_CENTS = 10_000_000_000;
+export const MAX_RIEL = 1_000_000_000_000;
 
 export function todayKH(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -25,7 +26,8 @@ export function dueDate(start, period) {
 }
 
 export function monthlyCents(loan) {
-  return Math.round(loan.amountCents * loan.rateBps / 10000);
+  if (loan.interestMode === 'fixed') return loan.fixedMinor;
+  return Math.round((loan.amountMinor ?? loan.amountCents) * loan.rateBps / 10000);
 }
 export function nextDue(loan) { return dueDate(loan.start, loan.payments.length + 1); }
 export function unpaidMonths(loan, date = todayKH()) {
@@ -41,7 +43,9 @@ export function status(loan, date = todayKH()) {
   if (due === date) return 'today';
   return (Date.parse(due) - Date.parse(date)) / 86400000 <= 3 ? 'soon' : 'upcoming';
 }
-export function money(cents) { return '$' + (cents / 100).toFixed(2); }
+export function money(amount, currency = 'USD') {
+  return currency === 'KHR' ? '៛' + amount.toLocaleString('en-US') : '$' + (amount / 100).toFixed(2);
+}
 export function khDate(value) {
   if (!validDate(value)) return value;
   return new Intl.DateTimeFormat('km-KH', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' })
@@ -49,6 +53,7 @@ export function khDate(value) {
 }
 export function normalizeTelegram(value) {
   let contact = String(value ?? '').trim();
+  if (!contact) return '';
   if (/^tg:\/\/resolve\?/i.test(contact)) {
     const url = new URL(contact);
     const phone = url.searchParams.get('phone');
@@ -72,8 +77,9 @@ export function telegramFromQR(value) {
 }
 export function reminder(loan, date = todayKH()) {
   const count = unpaidMonths(loan, date);
-  const extra = count > 1 ? ` បច្ចុប្បន្នមានការប្រាក់មិនទាន់កត់ត្រា ${count} ខែ សរុប ${money(count * monthlyCents(loan))}។` : '';
-  return `សួស្តី ${loan.customer} សូមរំលឹកថា ការប្រាក់ចំនួន ${money(monthlyCents(loan))} សម្រាប់ ${loan.item} ត្រូវបង់នៅថ្ងៃទី ${khDate(nextDue(loan))}។${extra} សូមទាក់ទងមកយើងខ្ញុំដើម្បីរៀបចំការបង់ប្រាក់។ សូមអរគុណ។`;
+  const currency = loan.currency ?? 'USD';
+  const extra = count > 1 ? ` បច្ចុប្បន្នមានការប្រាក់មិនទាន់កត់ត្រា ${count} ខែ សរុប ${money(count * monthlyCents(loan), currency)}។` : '';
+  return `សួស្តី ${loan.customer} សូមរំលឹកថា ការប្រាក់ចំនួន ${money(monthlyCents(loan), currency)} សម្រាប់ ${loan.item} ត្រូវបង់នៅថ្ងៃទី ${khDate(nextDue(loan))}។${extra} សូមទាក់ទងមកយើងខ្ញុំដើម្បីរៀបចំការបង់ប្រាក់។ សូមអរគុណ។`;
 }
 export function telegramURL(loan, date = todayKH()) {
   const username = normalizeTelegram(loan.telegram);
@@ -87,32 +93,42 @@ export function normalizeLoan(raw, date = todayKH()) {
   const telegram = normalizeTelegram(raw.telegram);
   const phone = String(raw.phone ?? '').trim();
   const notes = String(raw.notes ?? '').trim();
-  const amountCents = Number(raw.amountCents);
-  const rateBps = Number(raw.rateBps);
-  if (!customer || customer.length > 100 || !item || item.length > 200 || !telegram || phone.length > 40 || notes.length > 500 ||
-      !Number.isSafeInteger(amountCents) || amountCents < 1 || amountCents > MAX_CENTS ||
-      !Number.isInteger(rateBps) || rateBps < 1 || rateBps > 10000 ||
+  const currency = raw.currency ?? 'USD';
+  const interestMode = raw.interestMode ?? 'percent';
+  const amountMinor = Number(raw.amountMinor ?? raw.amountCents);
+  const rateBps = Number(raw.rateBps ?? 0);
+  const fixedMinor = Number(raw.fixedMinor ?? 0);
+  if (!customer || customer.length > 100 || !item || item.length > 200 || telegram === null || phone.length > 40 || notes.length > 500 ||
+      !['USD', 'KHR'].includes(currency) || !['percent', 'fixed'].includes(interestMode) ||
+      !Number.isSafeInteger(amountMinor) || amountMinor < 1 || amountMinor > (currency === 'KHR' ? MAX_RIEL : MAX_CENTS) ||
+      !Number.isInteger(rateBps) || (interestMode === 'percent' ? rateBps < 1 || rateBps > 10000 : rateBps !== 0) ||
+      !Number.isSafeInteger(fixedMinor) || (interestMode === 'fixed' ? fixedMinor < 1 || fixedMinor > (currency === 'KHR' ? MAX_RIEL : MAX_CENTS) : fixedMinor !== 0) ||
       !validDate(raw.start) || raw.start < '2000-01-01' || raw.start > date) {
     throw Error('សូមពិនិត្យឈ្មោះ ទំនិញ ចំនួនប្រាក់ ថ្ងៃឱ្យខ្ចី អត្រាការប្រាក់ និង Telegram');
+  }
+  if (interestMode === 'percent' && Math.round(amountMinor * rateBps / 10000) < 1) {
+    throw Error('ការប្រាក់ប្រចាំខែតិចជាងចំនួនប្រាក់តូចបំផុត។ សូមបង្កើនភាគរយ ឬជ្រើសចំនួនថេរ។');
   }
   const payments = raw.payments ?? [];
   if (!Array.isArray(payments) || payments.length > 1199) throw Error('ប្រវត្តិបង់ប្រាក់មិនត្រឹមត្រូវ');
   const normalizedPayments = payments.map((p, index) => {
-    if (!p || p.period !== index + 1 || p.amountCents !== Math.round(amountCents * rateBps / 10000) ||
+    const paidMinor = p?.amountMinor ?? p?.amountCents;
+    const monthly = interestMode === 'fixed' ? fixedMinor : Math.round(amountMinor * rateBps / 10000);
+    if (!p || p.period !== index + 1 || paidMinor !== monthly ||
         !validDate(p.paidAt) || p.paidAt > date || typeof p.id !== 'string' || p.id.length > 100) {
       throw Error('ប្រវត្តិបង់ប្រាក់មិនត្រឹមត្រូវ');
     }
-    return { id: p.id, period: p.period, amountCents: p.amountCents, paidAt: p.paidAt };
+    return { id: p.id, period: p.period, amountMinor: paidMinor, paidAt: p.paidAt };
   });
   const closedAt = raw.closedAt ?? null;
   if (closedAt !== null && (!validDate(closedAt) || closedAt > date)) throw Error('ថ្ងៃបញ្ចប់មិនត្រឹមត្រូវ');
   return { id: typeof raw.id === 'string' && /^[a-zA-Z0-9-]{1,100}$/.test(raw.id) ? raw.id : crypto.randomUUID(),
-    customer, item, telegram, phone, notes, amountCents, rateBps, start: raw.start, payments: normalizedPayments, closedAt };
+    customer, item, telegram, phone, notes, currency, interestMode, amountMinor, rateBps, fixedMinor, start: raw.start, payments: normalizedPayments, closedAt };
 }
 
 export function importBackup(parsed, date = todayKH()) {
   if (!parsed || !Array.isArray(parsed.loans) ||
-      !(parsed.version === 1 || (parsed.version === undefined && typeof parsed.exported === 'string'))) {
+      !([1, 2].includes(parsed.version) || (parsed.version === undefined && typeof parsed.exported === 'string'))) {
     throw Error('ទម្រង់ឯកសារមិនត្រឹមត្រូវ។');
   }
   const legacy = parsed.version === undefined;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dueDate, monthlyCents, nextDue, unpaidMonths, status, normalizeLoan, reminder, telegramURL, telegramFromQR, importBackup } from '../core.mjs';
+import { dueDate, monthlyCents, nextDue, unpaidMonths, status, normalizeLoan, reminder, telegramURL, telegramFromQR, importBackup, money } from '../core.mjs';
 const base = { id: 'loan-1', customer: 'ដារ៉ា', item: 'ទូរស័ព្ទ', telegram: 'Dara_123', phone: '', notes: '', amountCents: 10000, rateBps: 300, start: '2026-07-20', payments: [], closedAt: null };
 test('3% monthly interest is $3 per $100, using cents', () => {
   assert.equal(monthlyCents(base), 300);
@@ -35,6 +35,25 @@ test('earlier PawnDesk JSON exports retain payment history and closed state', ()
   assert.equal(loan.payments[0].paidAt, '2026-08-20');
   assert.equal(loan.closedAt, '2026-10-20');
   assert.equal(loan.payments.length, 1);
+  assert.equal(loan.currency, 'USD');
+  assert.equal(loan.payments[0].amountMinor, 300);
+});
+test('old version 1 backup is converted without losing payments', () => {
+  const [loan] = importBackup({ version: 1, loans: [{ ...base, payments: [{ id: 'p1', period: 1, amountCents: 300, paidAt: '2026-08-20' }] }] }, '2026-10-20');
+  assert.equal(loan.amountMinor, 10000);
+  assert.equal(loan.interestMode, 'percent');
+  assert.equal(loan.payments[0].amountMinor, 300);
+});
+test('fixed riel interest keeps currency in reminders and version 2 backups', () => {
+  const loan = normalizeLoan({ ...base, currency: 'KHR', amountMinor: 100000, amountCents: undefined,
+    interestMode: 'fixed', rateBps: 0, fixedMinor: 7500, payments: [] }, '2026-10-20');
+  assert.equal(monthlyCents(loan), 7500);
+  assert.equal(money(loan.amountMinor, loan.currency), '៛100,000');
+  assert.match(reminder(loan, '2026-10-20'), /៛7,500/);
+  assert.deepEqual(importBackup({ version: 2, loans: [loan] }, '2026-10-20')[0], loan);
+  assert.equal(normalizeLoan({ ...loan, telegram: '' }, '2026-10-20').telegram, '');
+  assert.equal(telegramURL({ ...loan, telegram: '' }), null);
+  assert.throws(() => normalizeLoan({ ...loan, currency: 'KHR', amountMinor: 100000.5 }, '2026-10-20'));
 });
 test('Telegram QR profile links become safe direct chat contacts', () => {
   assert.equal(telegramFromQR('https://t.me/Dara_123?profile'), 'Dara_123');
