@@ -38,7 +38,7 @@
 
         <section class="stats" aria-label="ស្ថិតិសង្ខេប">
           <div class="stat"><div class="stat-title">ប្រាក់ដើមកំពុងឱ្យខ្ចី <span>៛</span></div><strong id="principalValue">$0.00</strong><small id="activeValue">0 កិច្ចសន្យាកំពុងដំណើរការ</small></div>
-          <div class="stat"><div class="stat-title">ការប្រាក់ដល់ថ្ងៃបង់ <span>◷</span></div><strong id="interestValue">$0.00</strong><small>រាប់បញ្ចូលខែដែលខកខាន</small></div>
+          <div class="stat"><div class="stat-title">ការប្រាក់ដល់ថ្ងៃបង់ <span>◷</span></div><strong id="interestValue">$0.00</strong><small>រាប់បញ្ចូលខែដែលខកខាន · ដុល្លារ និងរៀលដាច់ដោយឡែក</small></div>
           <div class="stat soft"><div class="stat-title">អតិថិជនត្រូវរំលឹក <span>♧</span></div><strong id="reminderValue">0 នាក់</strong><small id="overdueValue">0 ហួសថ្ងៃ · 0 ដល់ថ្ងៃ</small></div>
         </section>
 
@@ -49,7 +49,7 @@
           <div class="toolbar"><div class="tabs" id="tabs"><button class="active" data-filter="active">កំពុងដំណើរការ</button><button data-filter="alert">ត្រូវរំលឹក <span id="tabAlert">0</span></button><button data-filter="closed">បានបញ្ចប់</button></div><label class="search">⌕ <input id="search" type="search" placeholder="ស្វែងរកឈ្មោះ ឬទំនិញ…" aria-label="ស្វែងរកការបញ្ចាំ"></label></div>
           <div class="table-header" aria-hidden="true"><span>អតិថិជន និងទំនិញ</span><span>ប្រាក់ដើម / ការប្រាក់</span><span>ថ្ងៃបង់បន្ទាប់</span><span>សកម្មភាព</span></div>
           <div id="loanList" aria-live="polite"></div>
-          <div class="records-footer"><span>◈ ប្រើប្រាក់ដុល្លារ USD</span><span>ថ្ងៃ និងម៉ោងគិតតាមប្រទេសកម្ពុជា</span></div>
+          <div class="records-footer"><span>◈ គាំទ្រ USD និង រៀល KHR · មិនប្តូរអត្រាប្រាក់</span><span>ថ្ងៃ និងម៉ោងគិតតាមប្រទេសកម្ពុជា</span></div>
         </section>
         <p class="footnote">ការបង់ការប្រាក់មិនបន្ថយប្រាក់ដើមទេ។ ថ្ងៃបង់ប្រចាំខែគិតតាមថ្ងៃដើមដែលបានឱ្យខ្ចី។</p>
       </main>
@@ -60,18 +60,19 @@
     <form id="loanForm">
       <label>ឈ្មោះអតិថិជន<input name="customer" required maxlength="100" placeholder="ឧទាហរណ៍៖ សុខ ដារ៉ា" autocomplete="name"></label>
       <label>ឈ្មោះទំនិញដែលដាក់បញ្ចាំ<input name="item" required maxlength="200" placeholder="ឧទាហរណ៍៖ ទូរស័ព្ទ iPhone 15"></label>
-      <div class="form-row"><label>ប្រាក់ដែលឱ្យខ្ចី ($)<input name="amount" type="number" min="0.01" max="100000000" step="0.01" required placeholder="100.00"></label><label>ការប្រាក់ប្រចាំខែ (%)<input name="rate" type="number" min="0.01" max="100" step="0.01" required value="3"></label></div>
+      <div class="form-row"><label>រូបិយប័ណ្ណ<select name="currency"><option value="USD">ដុល្លារ (USD $)</option><option value="KHR">រៀល (KHR ៛)</option></select></label><label id="amountLabel">ប្រាក់ដែលឱ្យខ្ចី ($)<input name="amount" type="number" min="0.01" max="100000000" step="0.01" required placeholder="100.00"></label></div>
+      <div class="form-row"><label>របៀបគិតការប្រាក់ប្រចាំខែ<select name="interestMode"><option value="percent">ភាគរយ (%)</option><option value="fixed">ចំនួនប្រាក់ថេរ</option></select></label><label id="rateLabel">ការប្រាក់ប្រចាំខែ (%)<input name="rate" type="number" min="0.01" max="100" step="0.01" required value="3"></label><label id="fixedLabel" hidden>ការប្រាក់ថេរប្រចាំខែ ($)<input name="fixed" type="number" min="0.01" max="100000000" step="0.01" placeholder="3.00" disabled></label></div>
       <div class="calculation" id="interestPreview">បើឱ្យខ្ចី $100 ក្នុងអត្រា 3% ការប្រាក់គឺ $3 ក្នុងមួយខែ។</div>
       <label>ថ្ងៃឱ្យខ្ចី<input name="start" type="date" min="2000-01-01" required></label>
       <label>គណនី Telegram របស់អតិថិជន
-        <span class="telegram-entry"><input name="telegram" required maxlength="100" placeholder="@username ឬ +855…"><button type="button" class="button secondary" id="scanTelegramQR">▣ ស្កេន QR</button></span>
-        <small>ស្កេន QR គណនី Telegram ឬបញ្ចូល username / លេខទូរស័ព្ទអន្តរជាតិដែលអាចបើកក្នុង Telegram។</small>
+        <span class="telegram-entry"><input name="telegram" maxlength="100" placeholder="@username ឬ +855…"><button type="button" class="button secondary" id="scanTelegramQR">▣ ស្កេន QR</button></span>
+        <small>ស្កេន QR គណនី Telegram ឬបញ្ចូល username / លេខទូរស័ព្ទអន្តរជាតិ។ អាចទុកទំនេរបាន ហើយបន្ថែមពេលក្រោយ។</small>
       </label>
       <div class="qr-panel" id="qrPanel" hidden><video id="qrVideo" autoplay playsinline muted aria-label="រូបភាពពីកាមេរ៉ាសម្រាប់ស្កេន QR"></video><p id="qrStatus" role="status">ដាក់ QR ក្នុងកាមេរ៉ា…</p><div class="qr-actions"><button type="button" class="button secondary" id="uploadTelegramQR">ជ្រើសរូបភាព QR</button><button type="button" class="button secondary" id="stopTelegramQR">បិទកាមេរ៉ា</button></div></div>
       <input type="file" id="qrImage" accept="image/*" hidden>
       <label>លេខទូរស័ព្ទ (បើមាន)<input name="phone" type="tel" maxlength="40" placeholder="012 345 678"></label>
       <label>កំណត់ចំណាំ (បើមាន)<textarea name="notes" maxlength="500" rows="2" placeholder="សម្គាល់ទំនិញ ឬព័ត៌មានផ្សេងៗ"></textarea></label>
-      <p class="modal-warning" id="lockedTerms" hidden>បានកត់ត្រាការបង់ប្រាក់ហើយ ដូច្នេះប្រាក់ដើម អត្រាការប្រាក់ និងថ្ងៃឱ្យខ្ចីមិនអាចកែបាន។</p>
+      <p class="modal-warning" id="lockedTerms" hidden>បានកត់ត្រាការបង់ប្រាក់ហើយ ដូច្នេះប្រាក់ដើម រូបិយប័ណ្ណ ការប្រាក់ និងថ្ងៃឱ្យខ្ចីមិនអាចកែបាន។</p>
       <div class="modal-actions"><button type="button" class="button secondary" id="cancelModal">បោះបង់</button><button type="submit" class="button primary">រក្សាទុកការបញ្ចាំ</button></div>
     </form>
   </section></div>

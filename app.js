@@ -7,6 +7,22 @@ const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[c]);
 const labels = { overdue: 'ហួសថ្ងៃបង់', today: 'ដល់ថ្ងៃបង់', soon: 'ជិតដល់ថ្ងៃបង់', upcoming: 'មិនទាន់ដល់ថ្ងៃ', closed: 'បានបញ្ចប់' };
+const minor = (value, currency) => Math.round(Number(value) * (currency === 'USD' ? 100 : 1));
+const displayAmount = (value, currency) => currency === 'USD' ? (value / 100).toFixed(2) : String(value);
+function totals(records, value) {
+  const sum = currency => records.filter(l => l.currency === currency).reduce((n, l) => n + value(l), 0);
+  return { USD: sum('USD'), KHR: sum('KHR') };
+}
+function showTotals(id, amounts) {
+  const el = $(id);
+  el.textContent = '';
+  el.classList.add('dual-total');
+  for (const currency of ['USD', 'KHR']) {
+    const line = document.createElement('span');
+    line.textContent = money(amounts[currency], currency);
+    el.append(line);
+  }
+}
 let loans = [];
 let filter = 'active';
 let editingId = null;
@@ -21,7 +37,7 @@ function toast(message) {
 function load() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"version":1,"loans":[]}');
-    if (stored.version !== 1 || !Array.isArray(stored.loans)) throw Error('Invalid data');
+    if (![1, 2].includes(stored.version) || !Array.isArray(stored.loans)) throw Error('Invalid data');
     const valid = stored.loans.map(item => normalizeLoan(item));
     if (new Set(valid.map(l => l.id)).size !== valid.length) throw Error('Duplicate IDs');
     loans = valid;
@@ -32,7 +48,7 @@ function load() {
 }
 function save() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, loans }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 2, loans }));
     return true;
   } catch {
     toast('មិនអាចរក្សាទុកបានទេ។ សូមពិនិត្យកន្លែងផ្ទុកលើឧបករណ៍។');
@@ -53,8 +69,8 @@ function render() {
   const alerts = active.filter(l => ['overdue', 'today'].includes(status(l, date)));
   const overdue = alerts.filter(l => status(l, date) === 'overdue').length;
   $('headerDate').textContent = khDate(date);
-  $('principalValue').textContent = money(active.reduce((sum, l) => sum + l.amountCents, 0));
-  $('interestValue').textContent = money(active.reduce((sum, l) => sum + unpaidMonths(l, date) * monthlyCents(l), 0));
+  showTotals('principalValue', totals(active, l => l.amountMinor));
+  showTotals('interestValue', totals(active, l => unpaidMonths(l, date) * monthlyCents(l)));
   $('activeValue').textContent = `${active.length} កិច្ចសន្យាកំពុងដំណើរការ`;
   $('reminderValue').textContent = `${alerts.length} នាក់`;
   $('overdueValue').textContent = `${overdue} ហួសថ្ងៃ · ${alerts.length - overdue} ដល់ថ្ងៃ`;
@@ -84,11 +100,11 @@ function render() {
 function row(l, date) {
   const state = status(l, date);
   const missed = unpaidMonths(l, date);
-  const history = l.payments.length ? l.payments.map(p => `<div class="history-line"><span>ខែទី ${p.period} · កំណត់បង់ ${khDate(dueDate(l.start, p.period))}</span><span>${money(p.amountCents)} · បានបង់ ${khDate(p.paidAt)}</span></div>`).join('') : '<p>មិនទាន់មានការបង់ការប្រាក់ដែលបានកត់ត្រាទេ។</p>';
+  const history = l.payments.length ? l.payments.map(p => `<div class="history-line"><span>ខែទី ${p.period} · កំណត់បង់ ${khDate(dueDate(l.start, p.period))}</span><span>${money(p.amountMinor, l.currency)} · បានបង់ ${khDate(p.paidAt)}</span></div>`).join('') : '<p>មិនទាន់មានការបង់ការប្រាក់ដែលបានកត់ត្រាទេ។</p>';
   const tg = !l.closedAt ? telegramURL(l, date) : null;
   return `<article class="loan-row">
-    <div class="person"><span class="initial">${escapeHTML(l.customer.slice(0, 1))}</span><span><strong>${escapeHTML(l.customer)}</strong><small>${escapeHTML(l.item)}</small><em>${l.telegram.startsWith('+') ? '' : '@'}${escapeHTML(l.telegram)}</em></span></div>
-    <div class="loan-number"><strong>${money(l.amountCents)}</strong><small>${money(monthlyCents(l))} / ខែ · ${l.rateBps / 100}%</small></div>
+    <div class="person"><span class="initial">${escapeHTML(l.customer.slice(0, 1))}</span><span><strong>${escapeHTML(l.customer)}</strong><small>${escapeHTML(l.item)}</small><em>${l.telegram ? (l.telegram.startsWith('+') ? '' : '@') + escapeHTML(l.telegram) : 'មិនទាន់មាន Telegram'}</em></span></div>
+    <div class="loan-number"><strong>${money(l.amountMinor, l.currency)}</strong><small>${money(monthlyCents(l), l.currency)} / ខែ · ${l.interestMode === 'fixed' ? 'ចំនួនថេរ' : l.rateBps / 100 + '%'}</small></div>
     <div><span class="due-text">${l.closedAt ? 'បិទនៅ ' + khDate(l.closedAt) : khDate(nextDue(l))}</span><span class="badge ${state}">${labels[state]}</span>${missed > 1 ? `<span class="missed">មិនទាន់បង់ ${missed} ខែ</span>` : ''}</div>
     <div class="row-actions">${tg ? `<a class="telegram" href="${escapeHTML(tg)}" target="_blank" rel="noopener noreferrer">✉ បើក Telegram ↗</a>` : ''}${!l.closedAt ? `<button class="action-small" data-action="pay" data-id="${escapeHTML(l.id)}">✓ កត់ត្រាប្រាក់បានបង់</button>` : ''}<button class="action-small" data-action="edit" data-id="${escapeHTML(l.id)}">កែព័ត៌មាន</button>${!l.closedAt ? `<button class="action-small close" data-action="close" data-id="${escapeHTML(l.id)}">បញ្ចប់ការបញ្ចាំ</button>` : ''}</div>
     <details class="row-details"><summary>ព័ត៌មានបន្ថែម និងប្រវត្តិបង់ប្រាក់</summary><p>ថ្ងៃឱ្យខ្ចី៖ ${khDate(l.start)}${l.phone ? ` · ទូរស័ព្ទ៖ ${escapeHTML(l.phone)}` : ''}</p>${l.notes ? `<p>កំណត់ចំណាំ៖ ${escapeHTML(l.notes)}</p>` : ''}${history}${l.payments.length && !l.closedAt ? `<button class="action-small close" data-action="undo" data-id="${escapeHTML(l.id)}">កែការកត់ត្រាចុងក្រោយ</button>` : ''}</details>
@@ -96,11 +112,31 @@ function row(l, date) {
 }
 function previewInterest() {
   const form = $('loanForm');
-  const amount = Math.round(Number(control(form, 'amount').value) * 100);
+  const currency = control(form, 'currency').value;
+  const mode = control(form, 'interestMode').value;
+  const fixed = mode === 'fixed';
+  const unit = currency === 'KHR' ? '៛' : '$';
+  const step = currency === 'KHR' ? '1' : '0.01';
+  const max = currency === 'KHR' ? '1000000000000' : '100000000';
+  $('amountLabel').firstChild.textContent = `ប្រាក់ដែលឱ្យខ្ចី (${unit})`;
+  $('fixedLabel').firstChild.textContent = `ការប្រាក់ថេរប្រចាំខែ (${unit})`;
+  for (const name of ['amount', 'fixed']) {
+    const field = control(form, name);
+    field.step = step; field.min = step; field.max = max;
+    field.placeholder = currency === 'KHR' ? '100000' : name === 'amount' ? '100.00' : '3.00';
+  }
+  $('rateLabel').hidden = fixed;
+  $('fixedLabel').hidden = !fixed;
+  control(form, 'rate').disabled = fixed || control(form, 'currency').disabled;
+  control(form, 'fixed').disabled = !fixed || control(form, 'currency').disabled;
+  control(form, 'rate').required = !fixed;
+  control(form, 'fixed').required = fixed;
+  const amount = minor(control(form, 'amount').value, currency);
   const bps = Math.round(Number(control(form, 'rate').value) * 100);
-  $('interestPreview').textContent = amount > 0 && bps > 0
-    ? `ការប្រាក់ប្រចាំខែ៖ ${money(Math.round(amount * bps / 10000))} (ប្រាក់ដើម ${money(amount)} × ${bps / 100}%)`
-    : 'បើឱ្យខ្ចី $100 ក្នុងអត្រា 3% ការប្រាក់គឺ $3 ក្នុងមួយខែ។';
+  const interest = fixed ? minor(control(form, 'fixed').value, currency) : Math.round(amount * bps / 10000);
+  $('interestPreview').textContent = amount > 0 && interest > 0
+    ? `ការប្រាក់ប្រចាំខែ៖ ${money(interest, currency)} (${fixed ? 'ចំនួនថេរ' : `ប្រាក់ដើម ${money(amount, currency)} × ${bps / 100}%`})`
+    : 'បញ្ចូលប្រាក់ដើម និងការប្រាក់ ដើម្បីមើលចំនួនត្រូវបង់ក្នុងមួយខែ។';
 }
 function openForm(loan = null) {
   stopQR();
@@ -110,15 +146,18 @@ function openForm(loan = null) {
   $('modalTitle').textContent = loan ? 'កែព័ត៌មានការបញ្ចាំ' : 'បន្ថែមការបញ្ចាំ';
   control(form, 'customer').value = loan?.customer ?? '';
   control(form, 'item').value = loan?.item ?? '';
-  control(form, 'amount').value = loan ? (loan.amountCents / 100).toFixed(2) : '';
-  control(form, 'rate').value = loan ? loan.rateBps / 100 : 3;
+  control(form, 'currency').value = loan?.currency ?? 'USD';
+  control(form, 'interestMode').value = loan?.interestMode ?? 'percent';
+  control(form, 'amount').value = loan ? displayAmount(loan.amountMinor, loan.currency) : '';
+  control(form, 'rate').value = loan?.interestMode === 'percent' ? loan.rateBps / 100 : 3;
+  control(form, 'fixed').value = loan?.interestMode === 'fixed' ? displayAmount(loan.fixedMinor, loan.currency) : '';
   control(form, 'start').value = loan?.start ?? todayKH();
   control(form, 'start').max = todayKH();
-  control(form, 'telegram').value = loan ? (loan.telegram.startsWith('+') ? loan.telegram : '@' + loan.telegram) : '';
+  control(form, 'telegram').value = loan?.telegram ? (loan.telegram.startsWith('+') ? loan.telegram : '@' + loan.telegram) : '';
   control(form, 'phone').value = loan?.phone ?? '';
   control(form, 'notes').value = loan?.notes ?? '';
   const locked = !!loan && (loan.payments.length > 0 || !!loan.closedAt);
-  for (const field of ['amount', 'rate', 'start']) control(form, field).disabled = locked;
+  for (const field of ['currency', 'interestMode', 'amount', 'start']) control(form, field).disabled = locked;
   $('lockedTerms').hidden = !locked;
   previewInterest();
   $('loanModal').hidden = false;
@@ -251,8 +290,11 @@ $('loanForm').addEventListener('submit', event => {
     telegram: control(form, 'telegram').value,
     phone: control(form, 'phone').value,
     notes: control(form, 'notes').value,
-    amountCents: locked ? previous.amountCents : Math.round(Number(control(form, 'amount').value) * 100),
-    rateBps: locked ? previous.rateBps : Math.round(Number(control(form, 'rate').value) * 100),
+    currency: locked ? previous.currency : control(form, 'currency').value,
+    interestMode: locked ? previous.interestMode : control(form, 'interestMode').value,
+    amountMinor: locked ? previous.amountMinor : minor(control(form, 'amount').value, control(form, 'currency').value),
+    rateBps: locked ? previous.rateBps : control(form, 'interestMode').value === 'percent' ? Math.round(Number(control(form, 'rate').value) * 100) : 0,
+    fixedMinor: locked ? previous.fixedMinor : control(form, 'interestMode').value === 'fixed' ? minor(control(form, 'fixed').value, control(form, 'currency').value) : 0,
     start: locked ? previous.start : control(form, 'start').value,
     payments: previous?.payments ?? [],
     closedAt: previous?.closedAt ?? null
@@ -282,8 +324,8 @@ $('loanList').addEventListener('click', event => {
     case 'pay': {
       if (loan.closedAt) return;
       const due = nextDue(loan);
-      if (!confirm(`តើអ្នកបានទទួលការប្រាក់ ${money(monthlyCents(loan))} សម្រាប់ខែដែលកំណត់បង់នៅថ្ងៃទី ${khDate(due)} ពិតប្រាកដហើយឬនៅ?\n\nការកត់ត្រានេះបង់បានមួយខែ ហើយប្រាក់ដើម ${money(loan.amountCents)} នៅដដែល។`)) return;
-      if (commit(() => loan.payments.push({ id: crypto.randomUUID(), period: loan.payments.length + 1, amountCents: monthlyCents(loan), paidAt: todayKH() }))) toast('បានកត់ត្រាការបង់ការប្រាក់មួយខែ។');
+      if (!confirm(`តើអ្នកបានទទួលការប្រាក់ ${money(monthlyCents(loan), loan.currency)} សម្រាប់ខែដែលកំណត់បង់នៅថ្ងៃទី ${khDate(due)} ពិតប្រាកដហើយឬនៅ?\n\nការកត់ត្រានេះបង់បានមួយខែ ហើយប្រាក់ដើម ${money(loan.amountMinor, loan.currency)} នៅដដែល។`)) return;
+      if (commit(() => loan.payments.push({ id: crypto.randomUUID(), period: loan.payments.length + 1, amountMinor: monthlyCents(loan), paidAt: todayKH() }))) toast('បានកត់ត្រាការបង់ការប្រាក់មួយខែ។');
       break;
     }
     case 'undo': {
@@ -295,14 +337,14 @@ $('loanList').addEventListener('click', event => {
     case 'close': {
       if (loan.closedAt) return;
       const due = unpaidMonths(loan) * monthlyCents(loan);
-      if (!confirm(`សូមបញ្ជាក់ថា អតិថិជនបានសងប្រាក់ដើម ${money(loan.amountCents)} និងការប្រាក់នៅសល់ ${money(due)} រួចរាល់ ហើយបានទទួលទំនិញវិញ។\n\nបញ្ចប់ការបញ្ចាំនេះឬ?`)) return;
+      if (!confirm(`សូមបញ្ជាក់ថា អតិថិជនបានសងប្រាក់ដើម ${money(loan.amountMinor, loan.currency)} និងការប្រាក់នៅសល់ ${money(due, loan.currency)} រួចរាល់ ហើយបានទទួលទំនិញវិញ។\n\nបញ្ចប់ការបញ្ចាំនេះឬ?`)) return;
       if (commit(() => { loan.closedAt = todayKH(); })) toast('បានបញ្ចប់ការបញ្ចាំ ហើយការរំលឹកត្រូវបានបិទ។');
       break;
     }
   }
 });
 $('exportData').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), loans }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), loans }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
