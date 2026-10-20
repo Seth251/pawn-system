@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="km">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#165a45">
+  <meta name="description" content="ប្រព័ន្ធតាមដានការបញ្ចាំ ការប្រាក់ប្រចាំខែ និងសាររំលឹកតាម Telegram">
+  <title>ប្រព័ន្ធបញ្ចាំ · តាមដានការប្រាក់ប្រចាំខែ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="./" aria-label="ទំព័រដើម"><span class="brand-mark">៛</span><span>កត់ត្រាបញ្ចាំ</span></a>
+      <div class="workspace"><span class="workspace-avatar">ក</span><span><strong>អាជីវកម្មរបស់ខ្ញុំ</strong><small>ផ្ទាំងគ្រប់គ្រងផ្ទាល់ខ្លួន</small></span></div>
+      <p class="sidebar-label">ម៉ឺនុយ</p>
+      <nav aria-label="តម្រងការបញ្ចាំ">
+        <button class="nav-item selected" data-filter="active">▦ <span>ទិដ្ឋភាពទូទៅ</span></button>
+        <button class="nav-item" data-filter="alert">♧ <span>ត្រូវរំលឹក</span><b id="navAlert">0</b></button>
+        <button class="nav-item" data-filter="closed">◷ <span>បានបញ្ចប់</span></button>
+      </nav>
+      <div class="side-note"><span class="side-note-symbol">✉</span><strong>រំលឹកបានងាយ</strong><p>មើលអ្នកដែលដល់ថ្ងៃបង់ ហើយបើក Telegram ដោយចុចតែម្តង។</p></div>
+      <p class="sidebar-foot">ទិន្នន័យរក្សាទុកលើឧបករណ៍នេះ</p>
+    </aside>
+
+    <div class="main-area">
+      <header class="topbar"><span>ផ្ទាំងគ្រប់គ្រង <span class="crumb">›</span> ទិដ្ឋភាពទូទៅ</span><time id="headerDate"></time></header>
+      <main>
+        <section class="heading">
+          <div><p class="eyebrow">គ្រប់គ្រងការប្រាក់ឱ្យច្បាស់លាស់</p><h1>ដឹងថានរណាត្រូវបង់ថ្ងៃនេះ<span>.</span></h1><p class="heading-sub">កត់ត្រាទំនិញ ប្រាក់ដែលឱ្យខ្ចី និងការបង់ការប្រាក់ប្រចាំខែ។</p></div>
+          <button class="button primary" id="addLoan">＋ បន្ថែមការបញ្ចាំ</button>
+        </section>
+
+        <section class="stats" aria-label="ស្ថិតិសង្ខេប">
+          <div class="stat"><div class="stat-title">ប្រាក់ដើមកំពុងឱ្យខ្ចី <span>៛</span></div><strong id="principalValue">$0.00</strong><small id="activeValue">0 កិច្ចសន្យាកំពុងដំណើរការ</small></div>
+          <div class="stat"><div class="stat-title">ការប្រាក់ដល់ថ្ងៃបង់ <span>◷</span></div><strong id="interestValue">$0.00</strong><small>រាប់បញ្ចូលខែដែលខកខាន</small></div>
+          <div class="stat soft"><div class="stat-title">អតិថិជនត្រូវរំលឹក <span>♧</span></div><strong id="reminderValue">0 នាក់</strong><small id="overdueValue">0 ហួសថ្ងៃ · 0 ដល់ថ្ងៃ</small></div>
+        </section>
+
+        <section class="notice" id="notice" aria-live="polite"></section>
+
+        <section class="records">
+          <div class="records-heading"><div><h2>បញ្ជីការបញ្ចាំ <span id="recordCount">0</span></h2><p>ចុច Telegram ដើម្បីបើកសាររំលឹកដែលបានត្រៀមរួច។</p></div><div class="records-tools"><button type="button" class="text-button" id="exportData">↓ ទាញយកទិន្នន័យ</button><button type="button" class="text-button" id="importData">↑ ស្ដារទិន្នន័យ</button><input type="file" id="importFile" accept=".json,application/json" hidden></div></div>
+          <div class="toolbar"><div class="tabs" id="tabs"><button class="active" data-filter="active">កំពុងដំណើរការ</button><button data-filter="alert">ត្រូវរំលឹក <span id="tabAlert">0</span></button><button data-filter="closed">បានបញ្ចប់</button></div><label class="search">⌕ <input id="search" type="search" placeholder="ស្វែងរកឈ្មោះ ឬទំនិញ…" aria-label="ស្វែងរកការបញ្ចាំ"></label></div>
+          <div class="table-header" aria-hidden="true"><span>អតិថិជន និងទំនិញ</span><span>ប្រាក់ដើម / ការប្រាក់</span><span>ថ្ងៃបង់បន្ទាប់</span><span>សកម្មភាព</span></div>
+          <div id="loanList" aria-live="polite"></div>
+          <div class="records-footer"><span>◈ ប្រើប្រាក់ដុល្លារ USD</span><span>ថ្ងៃ និងម៉ោងគិតតាមប្រទេសកម្ពុជា</span></div>
+        </section>
+        <p class="footnote">ការបង់ការប្រាក់មិនបន្ថយប្រាក់ដើមទេ។ ថ្ងៃបង់ប្រចាំខែគិតតាមថ្ងៃដើមដែលបានឱ្យខ្ចី។</p>
+      </main>
+    </div>
+  </div>
+
+  <div class="overlay" id="loanModal" hidden><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><button class="modal-close" id="closeModal" type="button" aria-label="បិទ">✕</button><p class="eyebrow">ព័ត៌មានកិច្ចសន្យា</p><h2 id="modalTitle">បន្ថែមការបញ្ចាំ</h2><p class="modal-sub">បំពេញព័ត៌មានខាងក្រោម ហើយកម្មវិធីនឹងគណនាការប្រាក់ឱ្យអ្នក។</p>
+    <form id="loanForm">
+      <label>ឈ្មោះអតិថិជន<input name="customer" required maxlength="100" placeholder="ឧទាហរណ៍៖ សុខ ដារ៉ា" autocomplete="name"></label>
+      <label>ឈ្មោះទំនិញដែលដាក់បញ្ចាំ<input name="item" required maxlength="200" placeholder="ឧទាហរណ៍៖ ទូរស័ព្ទ iPhone 15"></label>
+      <div class="form-row"><label>ប្រាក់ដែលឱ្យខ្ចី ($)<input name="amount" type="number" min="0.01" max="100000000" step="0.01" required placeholder="100.00"></label><label>ការប្រាក់ប្រចាំខែ (%)<input name="rate" type="number" min="0.01" max="100" step="0.01" required value="3"></label></div>
+      <div class="calculation" id="interestPreview">បើឱ្យខ្ចី $100 ក្នុងអត្រា 3% ការប្រាក់គឺ $3 ក្នុងមួយខែ។</div>
+      <label>ថ្ងៃឱ្យខ្ចី<input name="start" type="date" min="2000-01-01" required></label>
+      <label>ឈ្មោះអ្នកប្រើ Telegram<input name="telegram" required maxlength="60" placeholder="@username"><small>សូមបញ្ចូលឈ្មោះអ្នកប្រើ Telegram របស់អតិថិជន ដើម្បីបើកការជជែកដោយចុចតែម្តង។</small></label>
+      <label>លេខទូរស័ព្ទ (បើមាន)<input name="phone" type="tel" maxlength="40" placeholder="012 345 678"></label>
+      <label>កំណត់ចំណាំ (បើមាន)<textarea name="notes" maxlength="500" rows="2" placeholder="សម្គាល់ទំនិញ ឬព័ត៌មានផ្សេងៗ"></textarea></label>
+      <p class="modal-warning" id="lockedTerms" hidden>បានកត់ត្រាការបង់ប្រាក់ហើយ ដូច្នេះប្រាក់ដើម អត្រាការប្រាក់ និងថ្ងៃឱ្យខ្ចីមិនអាចកែបាន។</p>
+      <div class="modal-actions"><button type="button" class="button secondary" id="cancelModal">បោះបង់</button><button type="submit" class="button primary">រក្សាទុកការបញ្ចាំ</button></div>
+    </form>
+  </section></div>
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>
