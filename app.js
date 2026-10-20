@@ -1,7 +1,8 @@
-import { STORAGE_KEY, todayKH, validDate, dueDate, monthlyCents, nextDue, unpaidMonths,
-  status, money, khDate, normalizeLoan, telegramURL, importBackup } from './core.mjs';
+import { STORAGE_KEY, todayKH, dueDate, monthlyCents, nextDue, unpaidMonths,
+  status, money, khDate, normalizeLoan, telegramURL, importBackup, telegramFromQR } from './core.mjs';
 
 const $ = id => document.getElementById(id);
+const control = (form, name) => form.elements.namedItem(name);
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[c]);
@@ -86,7 +87,7 @@ function row(l, date) {
   const history = l.payments.length ? l.payments.map(p => `<div class="history-line"><span>ខែទី ${p.period} · កំណត់បង់ ${khDate(dueDate(l.start, p.period))}</span><span>${money(p.amountCents)} · បានបង់ ${khDate(p.paidAt)}</span></div>`).join('') : '<p>មិនទាន់មានការបង់ការប្រាក់ដែលបានកត់ត្រាទេ។</p>';
   const tg = !l.closedAt ? telegramURL(l, date) : null;
   return `<article class="loan-row">
-    <div class="person"><span class="initial">${escapeHTML(l.customer.slice(0, 1))}</span><span><strong>${escapeHTML(l.customer)}</strong><small>${escapeHTML(l.item)}</small><em>@${escapeHTML(l.telegram)}</em></span></div>
+    <div class="person"><span class="initial">${escapeHTML(l.customer.slice(0, 1))}</span><span><strong>${escapeHTML(l.customer)}</strong><small>${escapeHTML(l.item)}</small><em>${l.telegram.startsWith('+') ? '' : '@'}${escapeHTML(l.telegram)}</em></span></div>
     <div class="loan-number"><strong>${money(l.amountCents)}</strong><small>${money(monthlyCents(l))} / ខែ · ${l.rateBps / 100}%</small></div>
     <div><span class="due-text">${l.closedAt ? 'បិទនៅ ' + khDate(l.closedAt) : khDate(nextDue(l))}</span><span class="badge ${state}">${labels[state]}</span>${missed > 1 ? `<span class="missed">មិនទាន់បង់ ${missed} ខែ</span>` : ''}</div>
     <div class="row-actions">${tg ? `<a class="telegram" href="${escapeHTML(tg)}" target="_blank" rel="noopener noreferrer">✉ បើក Telegram ↗</a>` : ''}${!l.closedAt ? `<button class="action-small" data-action="pay" data-id="${escapeHTML(l.id)}">✓ កត់ត្រាប្រាក់បានបង់</button>` : ''}<button class="action-small" data-action="edit" data-id="${escapeHTML(l.id)}">កែព័ត៌មាន</button>${!l.closedAt ? `<button class="action-small close" data-action="close" data-id="${escapeHTML(l.id)}">បញ្ចប់ការបញ្ចាំ</button>` : ''}</div>
@@ -95,34 +96,143 @@ function row(l, date) {
 }
 function previewInterest() {
   const form = $('loanForm');
-  const amount = Math.round(Number(form.elements.amount.value) * 100);
-  const bps = Math.round(Number(form.elements.rate.value) * 100);
+  const amount = Math.round(Number(control(form, 'amount').value) * 100);
+  const bps = Math.round(Number(control(form, 'rate').value) * 100);
   $('interestPreview').textContent = amount > 0 && bps > 0
     ? `ការប្រាក់ប្រចាំខែ៖ ${money(Math.round(amount * bps / 10000))} (ប្រាក់ដើម ${money(amount)} × ${bps / 100}%)`
     : 'បើឱ្យខ្ចី $100 ក្នុងអត្រា 3% ការប្រាក់គឺ $3 ក្នុងមួយខែ។';
 }
 function openForm(loan = null) {
+  stopQR();
   editingId = loan?.id ?? null;
   const form = $('loanForm');
   form.reset();
   $('modalTitle').textContent = loan ? 'កែព័ត៌មានការបញ្ចាំ' : 'បន្ថែមការបញ្ចាំ';
-  form.elements.customer.value = loan?.customer ?? '';
-  form.elements.item.value = loan?.item ?? '';
-  form.elements.amount.value = loan ? (loan.amountCents / 100).toFixed(2) : '';
-  form.elements.rate.value = loan ? loan.rateBps / 100 : 3;
-  form.elements.start.value = loan?.start ?? todayKH();
-  form.elements.start.max = todayKH();
-  form.elements.telegram.value = loan ? '@' + loan.telegram : '';
-  form.elements.phone.value = loan?.phone ?? '';
-  form.elements.notes.value = loan?.notes ?? '';
+  control(form, 'customer').value = loan?.customer ?? '';
+  control(form, 'item').value = loan?.item ?? '';
+  control(form, 'amount').value = loan ? (loan.amountCents / 100).toFixed(2) : '';
+  control(form, 'rate').value = loan ? loan.rateBps / 100 : 3;
+  control(form, 'start').value = loan?.start ?? todayKH();
+  control(form, 'start').max = todayKH();
+  control(form, 'telegram').value = loan ? (loan.telegram.startsWith('+') ? loan.telegram : '@' + loan.telegram) : '';
+  control(form, 'phone').value = loan?.phone ?? '';
+  control(form, 'notes').value = loan?.notes ?? '';
   const locked = !!loan && (loan.payments.length > 0 || !!loan.closedAt);
-  for (const field of ['amount', 'rate', 'start']) form.elements[field].disabled = locked;
+  for (const field of ['amount', 'rate', 'start']) control(form, field).disabled = locked;
   $('lockedTerms').hidden = !locked;
   previewInterest();
   $('loanModal').hidden = false;
-  form.elements.customer.focus();
+  control(form, 'customer').focus();
 }
-function closeForm() { $('loanModal').hidden = true; editingId = null; }
+function closeForm() { stopQR(); $('loanModal').hidden = true; editingId = null; }
+let qrStream = null;
+let qrFrame = 0;
+let qrSession = 0;
+let lastFrameAt = 0;
+function stopQR() {
+  qrSession++;
+  cancelAnimationFrame(qrFrame);
+  qrFrame = 0;
+  qrStream?.getTracks().forEach(track => track.stop());
+  qrStream = null;
+  $('qrVideo').srcObject = null;
+  $('qrVideo').hidden = false;
+  $('qrPanel').hidden = true;
+}
+function detectedQR(raw) {
+  const contact = telegramFromQR(raw);
+  if (!contact) {
+    $('qrStatus').textContent = 'QR នេះមិនមែនតំណគណនី Telegram ទេ។ សូមប្រើ QR ដែលមាន t.me/username ឬ t.me/+លេខទូរស័ព្ទ។';
+    return false;
+  }
+  control($('loanForm'), 'telegram').value = contact.startsWith('+') ? contact : '@' + contact;
+  stopQR();
+  toast('បានបញ្ចូលគណនី Telegram ពី QR រួចរាល់។');
+  return true;
+}
+function decodeQR(source, width, height) {
+  if (typeof window.jsQR !== 'function') throw Error('មិនអាចបើកឧបករណ៍ស្កេន QR បានទេ។ សូមបញ្ចូលគណនី Telegram ដោយដៃ។');
+  const canvas = document.createElement('canvas');
+  const scale = Math.min(1, 1800 / Math.max(width, height));
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  context.drawImage(source, 0, 0, canvas.width, canvas.height);
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+  return window.jsQR(pixels.data, pixels.width, pixels.height, { inversionAttempts: 'attemptBoth' })?.data ?? null;
+}
+async function startQR() {
+  stopQR();
+  const session = qrSession;
+  $('qrPanel').hidden = false;
+  $('qrStatus').textContent = 'កំពុងបើកកាមេរ៉ា…';
+  if (typeof window.jsQR !== 'function') {
+    $('qrVideo').hidden = true;
+    $('qrStatus').textContent = 'មិនអាចប្រើឧបករណ៍ស្កេន QR បានទេ។ សូមបញ្ចូលគណនីដោយដៃ។';
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    $('qrVideo').hidden = true;
+    $('qrStatus').textContent = 'កាមេរ៉ាមិនអាចប្រើបាន។ អ្នកអាចជ្រើសរូបភាព QR ពីឧបករណ៍។';
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' } } });
+    if (session !== qrSession || $('loanModal').hidden) { stream.getTracks().forEach(track => track.stop()); return; }
+    qrStream = stream;
+    const video = $('qrVideo');
+    video.srcObject = stream;
+    await video.play();
+    if (session !== qrSession) return;
+    $('qrStatus').textContent = 'ដាក់ QR របស់អតិថិជនក្នុងកាមេរ៉ា។';
+    const scan = timestamp => {
+      if (session !== qrSession || !qrStream) return;
+      if (timestamp - lastFrameAt >= 180 && video.readyState >= 2 && video.videoWidth && video.videoHeight) {
+        lastFrameAt = timestamp;
+        try {
+          const result = decodeQR(video, video.videoWidth, video.videoHeight);
+          if (result && detectedQR(result)) return;
+        } catch { $('qrStatus').textContent = 'មិនអាចស្កេនពីកាមេរ៉ាបានទេ។ សូមសាកល្បងរូបភាព QR។'; }
+      }
+      qrFrame = requestAnimationFrame(scan);
+    };
+    qrFrame = requestAnimationFrame(scan);
+  } catch {
+    if (session !== qrSession) return;
+    qrStream?.getTracks().forEach(track => track.stop());
+    qrStream = null;
+    $('qrVideo').hidden = true;
+    $('qrStatus').textContent = 'មិនអាចប្រើកាមេរ៉ាបាន។ សូមអនុញ្ញាតកាមេរ៉ា ឬជ្រើសរូបភាព QR។';
+  }
+}
+$('scanTelegramQR').addEventListener('click', startQR);
+$('stopTelegramQR').addEventListener('click', stopQR);
+$('uploadTelegramQR').addEventListener('click', () => $('qrImage').click());
+$('qrImage').addEventListener('change', async event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    if (!file.type.startsWith('image/') || file.size > 10_000_000) throw Error('សូមជ្រើសរូបភាព QR ទំហំក្រោម 10 MB។');
+    let bitmap;
+    let imageURL;
+    if (typeof createImageBitmap === 'function') bitmap = await createImageBitmap(file);
+    else {
+      imageURL = URL.createObjectURL(file);
+      bitmap = new Image();
+      bitmap.src = imageURL;
+      await bitmap.decode();
+    }
+    try {
+      const result = decodeQR(bitmap, bitmap.width || bitmap.naturalWidth, bitmap.height || bitmap.naturalHeight);
+      if (!result) throw Error('រកមិនឃើញ QR ក្នុងរូបភាពនេះទេ។ សូមសាកល្បងរូបភាពច្បាស់ជាងនេះ។');
+      detectedQR(result);
+    } finally { bitmap.close?.(); if (imageURL) URL.revokeObjectURL(imageURL); }
+  } catch (error) {
+    $('qrPanel').hidden = false;
+    $('qrVideo').hidden = true;
+    $('qrStatus').textContent = error.message || 'មិនអាចអានរូបភាព QR បានទេ។';
+  } finally { event.target.value = ''; }
+});
 $('addLoan').addEventListener('click', () => openForm());
 $('closeModal').addEventListener('click', closeForm);
 $('cancelModal').addEventListener('click', closeForm);
@@ -136,14 +246,14 @@ $('loanForm').addEventListener('submit', event => {
   const locked = previous && (previous.payments.length > 0 || !!previous.closedAt);
   const raw = {
     id: previous?.id ?? crypto.randomUUID(),
-    customer: form.elements.customer.value,
-    item: form.elements.item.value,
-    telegram: form.elements.telegram.value,
-    phone: form.elements.phone.value,
-    notes: form.elements.notes.value,
-    amountCents: locked ? previous.amountCents : Math.round(Number(form.elements.amount.value) * 100),
-    rateBps: locked ? previous.rateBps : Math.round(Number(form.elements.rate.value) * 100),
-    start: locked ? previous.start : form.elements.start.value,
+    customer: control(form, 'customer').value,
+    item: control(form, 'item').value,
+    telegram: control(form, 'telegram').value,
+    phone: control(form, 'phone').value,
+    notes: control(form, 'notes').value,
+    amountCents: locked ? previous.amountCents : Math.round(Number(control(form, 'amount').value) * 100),
+    rateBps: locked ? previous.rateBps : Math.round(Number(control(form, 'rate').value) * 100),
+    start: locked ? previous.start : control(form, 'start').value,
     payments: previous?.payments ?? [],
     closedAt: previous?.closedAt ?? null
   };

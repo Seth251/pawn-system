@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dueDate, monthlyCents, nextDue, unpaidMonths, status, normalizeLoan, reminder, telegramURL, importBackup } from '../core.mjs';
+import { dueDate, monthlyCents, nextDue, unpaidMonths, status, normalizeLoan, reminder, telegramURL, telegramFromQR, importBackup } from '../core.mjs';
 const base = { id: 'loan-1', customer: 'ដារ៉ា', item: 'ទូរស័ព្ទ', telegram: 'Dara_123', phone: '', notes: '', amountCents: 10000, rateBps: 300, start: '2026-07-20', payments: [], closedAt: null };
 test('3% monthly interest is $3 per $100, using cents', () => {
   assert.equal(monthlyCents(base), 300);
@@ -35,4 +35,15 @@ test('earlier PawnDesk JSON exports retain payment history and closed state', ()
   assert.equal(loan.payments[0].paidAt, '2026-08-20');
   assert.equal(loan.closedAt, '2026-10-20');
   assert.equal(loan.payments.length, 1);
+});
+test('Telegram QR profile links become safe direct chat contacts', () => {
+  assert.equal(telegramFromQR('https://t.me/Dara_123?profile'), 'Dara_123');
+  assert.equal(telegramFromQR('tg://resolve?domain=Dara_123'), 'Dara_123');
+  assert.equal(telegramFromQR('https://t.me/+85512345678'), '+85512345678');
+  assert.equal(telegramFromQR('https://t.me/+InviteHash'), null);
+  assert.equal(telegramFromQR('https://evil.example/Dara_123'), null);
+  assert.equal(telegramFromQR('https://t.me/%E0%A4%A'), null);
+  assert.equal(telegramFromQR('https://t.me/contact/token'), null);
+  const phoneLoan = normalizeLoan({ ...base, telegram: '+85512345678' }, '2026-10-20');
+  assert.ok(telegramURL(phoneLoan, '2026-10-20').startsWith('https://t.me/+85512345678?text='));
 });

@@ -48,8 +48,27 @@ export function khDate(value) {
     .format(new Date(`${value}T12:00:00Z`));
 }
 export function normalizeTelegram(value) {
-  const username = String(value ?? '').trim().replace(/^@/, '').replace(/^https?:\/\/(?:www\.)?t\.me\//i, '').replace(/\/$/, '');
-  return /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(username) ? username : null;
+  let contact = String(value ?? '').trim();
+  if (/^tg:\/\/resolve\?/i.test(contact)) {
+    const url = new URL(contact);
+    const phone = url.searchParams.get('phone');
+    contact = url.searchParams.get('domain') ?? (phone ? '+' + phone.replace(/\D/g, '') : '');
+  } else if (/^https?:\/\//i.test(contact)) {
+    let url;
+    try { url = new URL(contact); } catch { return null; }
+    if (!['t.me', 'telegram.me', 'www.t.me', 'www.telegram.me'].includes(url.hostname.toLowerCase())) return null;
+    try { contact = decodeURIComponent(url.pathname.replace(/^\//, '').replace(/\/$/, '')); }
+    catch { return null; }
+  }
+  contact = contact.replace(/^@/, '');
+  if (/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(contact)) return contact;
+  if (/^\+[1-9]\d{6,14}$/.test(contact)) return contact;
+  return null;
+}
+export function telegramFromQR(value) {
+  const raw = String(value ?? '').trim();
+  if (!/^(@|https?:\/\/|tg:\/\/)/i.test(raw)) return null;
+  return normalizeTelegram(raw);
 }
 export function reminder(loan, date = todayKH()) {
   const count = unpaidMonths(loan, date);
