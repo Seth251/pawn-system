@@ -20,9 +20,9 @@ test('pawn can be added with item and monthly interest, then edited', () => {
   document.getElementById('addLoan').click();
   const form = document.getElementById('loanForm');
   const field = name => form.elements.namedItem(name);
-  assert.equal(typeof form.elements.item, 'function', 'item collides with the collection method');
   field('customer').value = 'សុខ ដារ៉ា';
-  field('item').value = 'iPhone 15';
+  field('itemCategory').value = 'phone';
+  field('itemDetails').value = 'iPhone 15';
   field('amount').value = '100';
   field('rate').value = '3';
   field('start').value = '2026-10-20';
@@ -30,13 +30,14 @@ test('pawn can be added with item and monthly interest, then edited', () => {
   form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
   const records = JSON.parse(localStorage.getItem('pawn-kh-v1')).loans;
   assert.equal(records.length, 1);
-  assert.equal(records[0].item, 'iPhone 15');
+  assert.equal(records[0].item, 'ទូរស័ព្ទ · iPhone 15');
   assert.equal(records[0].amountMinor, 10000);
   assert.equal(records[0].currency, 'USD');
   assert.equal(records[0].rateBps, 300);
   assert.match(document.getElementById('loanList').textContent, /iPhone 15/);
   document.querySelector('[data-action="edit"]').click();
-  assert.equal(field('item').value, 'iPhone 15');
+  assert.equal(field('itemDetails').value, 'iPhone 15');
+  assert.equal(field('itemCategory').value, 'phone');
 });
 
 test('riel percentage and fixed dollar contracts save, show separate totals, and record payments', () => {
@@ -45,25 +46,52 @@ test('riel percentage and fixed dollar contracts save, show separate totals, and
   document.getElementById('closeModal').click();
   document.getElementById('addLoan').click();
   field('customer').value = 'វិសាល';
-  field('item').value = 'ម៉ូតូ';
+  field('itemCategory').value = 'motorcycle';
   field('currency').value = 'KHR';
   field('currency').dispatchEvent(new window.Event('input', { bubbles: true }));
   field('amount').value = '100000';
   field('rate').value = '3';
   field('start').value = '2026-10-20';
   field('telegram').value = '';
+  field('itemCondition').value = 'good';
+  field('storageLocation').value = 'ទូ A ថត 2';
+  field('serialNumber').value = 'MOTO-007';
   form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
   let records = JSON.parse(localStorage.getItem('pawn-kh-v1')).loans;
   assert.equal(records[1].currency, 'KHR');
   assert.equal(records[1].amountMinor, 100000);
+  assert.equal(records[1].storageLocation, 'ទូ A ថត 2');
   assert.equal(document.getElementById('principalValue').textContent, '$100.00៛100,000');
   document.querySelector('[data-action="pay"][data-id="' + records[1].id + '"]').click();
+  const paymentForm = document.getElementById('paymentForm');
+  const paymentField = name => paymentForm.elements.namedItem(name);
+  paymentField('paymentAmount').value = '1000';
+  paymentForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
   records = JSON.parse(localStorage.getItem('pawn-kh-v1')).loans;
-  assert.equal(records[1].payments[0].amountMinor, 3000);
+  assert.equal(records[1].payments[0].amountMinor, 1000);
+  assert.match(document.getElementById('loanList').textContent, /៛2,000/);
+  document.querySelector('[data-action="pay"][data-id="' + records[1].id + '"]').click();
+  paymentField('paymentType').value = 'principal';
+  paymentField('paymentType').dispatchEvent(new window.Event('change', { bubbles: true }));
+  paymentField('paymentAmount').value = '25000';
+  paymentForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  records = JSON.parse(localStorage.getItem('pawn-kh-v1')).loans;
+  assert.equal(records[1].principalPayments[0].amountMinor, 25000);
+  assert.match(document.getElementById('principalValue').textContent, /៛75,000/);
+  document.querySelector('[data-action="receipt"][data-id="' + records[1].id + '"]').click();
+  assert.match(document.getElementById('receiptSheet').textContent, /៛75,000/);
+  assert.match(document.getElementById('receiptSheet').textContent, /MOTO-007/);
+  document.getElementById('closeReceipt').click();
 
   document.getElementById('addLoan').click();
   field('customer').value = 'លីណា';
-  field('item').value = 'ចិញ្ចៀន';
+  field('itemCategory').value = 'ring';
+  field('itemCategory').dispatchEvent(new window.Event('change', { bubbles: true }));
+  field('isGold').checked = true;
+  field('isGold').dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(document.getElementById('goldFields').hidden, false);
+  field('goldWeight').value = '2.5';
+  field('goldUnit').value = 'chi';
   field('currency').value = 'USD';
   field('interestMode').value = 'fixed';
   field('interestMode').dispatchEvent(new window.Event('input', { bubbles: true }));
@@ -76,7 +104,30 @@ test('riel percentage and fixed dollar contracts save, show separate totals, and
   assert.equal(records[2].interestMode, 'fixed');
   assert.equal(records[2].fixedMinor, 750);
   assert.equal(records[2].rateBps, 0);
+  assert.equal(records[2].goldWeightMilli, 2500);
+  assert.equal(records[2].goldUnit, 'chi');
   assert.match(document.getElementById('loanList').textContent, /\$7\.50/);
+  assert.match(document.getElementById('loanList').textContent, /2\.5 ជី/);
+  document.getElementById('itemFilter').value = 'gold-only';
+  document.getElementById('itemFilter').dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(document.querySelectorAll('.loan-row').length, 1);
+  document.getElementById('itemFilter').value = 'all';
+  document.getElementById('itemFilter').dispatchEvent(new window.Event('change', { bubbles: true }));
+});
+
+test('gold category reveals required weight and legacy item edits retain their name', () => {
+  const form = document.getElementById('loanForm');
+  const field = name => form.elements.namedItem(name);
+  document.getElementById('addLoan').click();
+  field('itemCategory').value = 'gold';
+  field('itemCategory').dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(field('isGold').checked, true);
+  assert.equal(field('goldWeight').required, true);
+  field('itemCategory').value = 'phone';
+  field('itemCategory').dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(field('isGold').checked, false);
+  assert.equal(field('goldWeight').disabled, true);
+  document.getElementById('closeModal').click();
 });
 
 test('QR panel offers a readable fallback when camera is unavailable', () => {
@@ -86,4 +137,115 @@ test('QR panel offers a readable fallback when camera is unavailable', () => {
   assert.match(document.getElementById('qrStatus').textContent, /កាមេរ៉ា/);
   document.getElementById('closeModal').click();
   assert.equal(document.getElementById('qrPanel').hidden, true);
+});
+
+test('custom item names are saved in the dropdown and reused without a loan', () => {
+  const form = document.getElementById('loanForm');
+  const field = name => form.elements.namedItem(name);
+  document.getElementById('addLoan').click();
+  field('itemCategory').value = 'phone';
+  field('itemDetails').value = 'iPhone 15';
+  document.getElementById('saveItemName').click();
+  const saved = JSON.parse(localStorage.getItem('pawn-kh-v1')).savedItems;
+  assert.deepEqual(saved, [{ category: 'phone', itemDetails: 'iPhone 15', isGold: false }]);
+  assert.equal(document.querySelector('#savedItemOptions option').textContent, 'ទូរស័ព្ទ · iPhone 15');
+  document.getElementById('saveItemName').click();
+  assert.equal(JSON.parse(localStorage.getItem('pawn-kh-v1')).savedItems.length, 1, 'duplicate presets are rejected');
+  document.getElementById('closeModal').click();
+  document.getElementById('addLoan').click();
+  field('itemCategory').value = 'saved:0';
+  field('itemCategory').dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(field('itemDetails').value, 'iPhone 15');
+  field('customer').value = 'សុវណ្ណ';
+  field('amount').value = '100';
+  field('rate').value = '3';
+  field('start').value = '2026-10-20';
+  form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  const loan = JSON.parse(localStorage.getItem('pawn-kh-v1')).loans.at(-1);
+  assert.equal(loan.itemCategory, 'phone');
+  assert.equal(loan.item, 'ទូរស័ព្ទ · iPhone 15');
+});
+
+test('saved gold item presets require a fresh weight for each new pawn', () => {
+  const form = document.getElementById('loanForm');
+  const field = name => form.elements.namedItem(name);
+  document.getElementById('addLoan').click();
+  field('itemCategory').value = 'ring';
+  field('itemDetails').value = 'ចិញ្ចៀនមាស';
+  field('isGold').checked = true;
+  document.getElementById('saveItemName').click();
+  document.getElementById('closeModal').click();
+  document.getElementById('addLoan').click();
+  field('itemCategory').value = 'saved:1';
+  field('itemCategory').dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(field('isGold').checked, true);
+  assert.equal(field('goldWeight').required, true);
+  assert.equal(field('goldWeight').value, '');
+  document.getElementById('closeModal').click();
+});
+
+test('downloaded backup restores all records after browser storage is cleared', async () => {
+  const originalCreateURL = URL.createObjectURL;
+  const originalClick = window.HTMLAnchorElement.prototype.click;
+  let exportedBlob;
+  let filename;
+  URL.createObjectURL = blob => { exportedBlob = blob; return 'blob:test-backup'; };
+  window.HTMLAnchorElement.prototype.click = function () { filename = this.download; };
+  try {
+    document.getElementById('exportData').click();
+    assert.match(filename, /^pawn-system-backup-.*\.json$/);
+    const backupText = await exportedBlob.text();
+    const saved = JSON.parse(backupText);
+    assert.equal(saved.version, 3);
+    assert.ok(saved.loans.length > 0);
+    assert.equal(saved.savedItems.length, 2);
+    assert.equal(saved.loans.length, JSON.parse(localStorage.getItem('pawn-kh-v1')).loans.length);
+
+    localStorage.clear();
+    window.dispatchEvent(new window.StorageEvent('storage', { key: 'pawn-kh-v1' }));
+    assert.equal(document.getElementById('backupCount').textContent, '0 កិច្ចសន្យា · 0 ឈ្មោះទំនិញ');
+    assert.equal(document.getElementById('importData').disabled, false);
+    const input = document.getElementById('importFile');
+    Object.defineProperty(input, 'files', { configurable: true, value: [{
+      name: filename, size: exportedBlob.size, text: async () => backupText
+    }] });
+    input.dispatchEvent(new window.Event('change'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepEqual(JSON.parse(localStorage.getItem('pawn-kh-v1')).loans, saved.loans);
+    assert.deepEqual(JSON.parse(localStorage.getItem('pawn-kh-v1')).savedItems, saved.savedItems);
+    assert.equal(document.getElementById('backupCount').textContent, `${saved.loans.length} កិច្ចសន្យា · 2 ឈ្មោះទំនិញ`);
+    assert.equal(document.querySelectorAll('#savedItemOptions option').length, 2);
+  } finally {
+    URL.createObjectURL = originalCreateURL;
+    window.HTMLAnchorElement.prototype.click = originalClick;
+  }
+});
+
+test('closing an overdue pawn records remaining interest and principal before printing', () => {
+  const form = document.getElementById('loanForm');
+  const field = name => form.elements.namedItem(name);
+  document.getElementById('addLoan').click();
+  field('customer').value = 'សុភា';
+  field('itemCategory').value = 'other';
+  field('itemCategory').dispatchEvent(new window.Event('change', { bubbles: true }));
+  field('itemDetails').value = 'កាមេរ៉ា';
+  field('amount').value = '100';
+  field('rate').value = '3';
+  field('start').value = '2026-07-20';
+  form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  const key = 'pawn-kh-v1';
+  let records = JSON.parse(localStorage.getItem(key)).loans;
+  const loan = records.at(-1);
+  assert.equal(loan.item, 'កាមេរ៉ា');
+  document.querySelector(`[data-action="close"][data-id="${loan.id}"]`).click();
+  records = JSON.parse(localStorage.getItem(key)).loans;
+  const closed = records.at(-1);
+  assert.ok(closed.closedAt);
+  assert.equal(closed.principalPayments.at(-1).amountMinor, 10000);
+  assert.ok(closed.payments.at(-1).amountMinor > 0);
+  document.getElementById('itemFilter').value = 'all';
+  document.querySelector('[data-filter="closed"]').click();
+  document.querySelector(`[data-action="receipt"][data-id="${loan.id}"]`).click();
+  assert.match(document.getElementById('receiptSheet').textContent, /ប្រាក់ដើមនៅសល់៛?\$0\.00/);
+  document.getElementById('closeReceipt').click();
 });
