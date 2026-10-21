@@ -1,5 +1,6 @@
 import { STORAGE_KEY, todayKH, dueDate, monthlyCents, nextDue, unpaidMonths,
-  status, money, khDate, normalizeLoan, telegramURL, importBackup, telegramFromQR } from './core.mjs';
+  status, money, khDate, normalizeLoan, telegramURL, importBackup, telegramFromQR,
+  ITEM_CATEGORIES, goldWeightText } from './core.mjs';
 
 const $ = id => document.getElementById(id);
 const control = (form, name) => form.elements.namedItem(name);
@@ -76,7 +77,6 @@ function render() {
   $('overdueValue').textContent = `${overdue} ហួសថ្ងៃ · ${alerts.length - overdue} ដល់ថ្ងៃ`;
   $('navAlert').textContent = String(alerts.length);
   $('tabAlert').textContent = String(alerts.length);
-  $('recordCount').textContent = String(loans.length);
   $('notice').classList.toggle('needs-action', alerts.length > 0);
   $('notice').innerHTML = alerts.length
     ? `<span class="notice-icon">♧</span><div><strong>មានអតិថិជន ${alerts.length} នាក់ត្រូវរំលឹក</strong><p>ការប្រាក់ដល់ថ្ងៃបង់ ឬហួសថ្ងៃបង់ហើយ។ ចុច Telegram ដើម្បីបើកសាររំលឹក។</p></div>`
@@ -86,14 +86,17 @@ function render() {
     button.classList.toggle('selected', button.dataset.filter === filter);
   });
   const query = $('search').value.trim().toLocaleLowerCase();
+  const itemFilter = $('itemFilter').value;
   const shown = loans.filter(l => {
     if (filter === 'closed') return !!l.closedAt;
     if (l.closedAt) return false;
     if (filter === 'alert') return ['overdue', 'today'].includes(status(l, date));
     return true;
-  }).filter(l => [l.customer, l.item, l.telegram, l.phone, l.notes]
+  }).filter(l => itemFilter === 'all' || (itemFilter === 'gold-only' ? l.isGold : l.itemCategory === itemFilter))
+    .filter(l => [l.customer, l.item, ITEM_CATEGORIES[l.itemCategory], l.telegram, l.phone, l.notes, goldWeightText(l)]
     .join(' ').toLocaleLowerCase().includes(query))
     .sort((a, b) => (a.closedAt ? a.closedAt : nextDue(a)).localeCompare(b.closedAt ? b.closedAt : nextDue(b)));
+  $('recordCount').textContent = String(shown.length);
   $('loanList').innerHTML = shown.length ? shown.map(l => row(l, date)).join('') :
     `<div class="empty"><span class="empty-symbol">◈</span><strong>${loans.length ? 'មិនមានការបញ្ចាំក្នុងបញ្ជីនេះទេ' : 'ចាប់ផ្ដើមកត់ត្រាការបញ្ចាំដំបូង'}</strong><p>${loans.length ? 'សាកល្បងពាក្យស្វែងរក ឬជ្រើសផ្ទាំងផ្សេង។' : 'បន្ថែមអតិថិជន ទំនិញ និងប្រាក់ដែលបានឱ្យខ្ចី។ កម្មវិធីនឹងគណនាថ្ងៃបង់រៀងរាល់ខែ។'}</p>${loans.length ? '' : '<button class="button primary" data-action="new">＋ បន្ថែមការបញ្ចាំ</button>'}</div>`;
 }
@@ -103,7 +106,7 @@ function row(l, date) {
   const history = l.payments.length ? l.payments.map(p => `<div class="history-line"><span>ខែទី ${p.period} · កំណត់បង់ ${khDate(dueDate(l.start, p.period))}</span><span>${money(p.amountMinor, l.currency)} · បានបង់ ${khDate(p.paidAt)}</span></div>`).join('') : '<p>មិនទាន់មានការបង់ការប្រាក់ដែលបានកត់ត្រាទេ។</p>';
   const tg = !l.closedAt ? telegramURL(l, date) : null;
   return `<article class="loan-row">
-    <div class="person"><span class="initial">${escapeHTML(l.customer.slice(0, 1))}</span><span><strong>${escapeHTML(l.customer)}</strong><small>${escapeHTML(l.item)}</small><em>${l.telegram ? (l.telegram.startsWith('+') ? '' : '@') + escapeHTML(l.telegram) : 'មិនទាន់មាន Telegram'}</em></span></div>
+    <div class="person"><span class="initial">${escapeHTML(l.customer.slice(0, 1))}</span><span><strong>${escapeHTML(l.customer)}</strong><small>${escapeHTML(l.item)}</small>${l.isGold ? `<small class="gold-weight">◆ ទម្ងន់មាស ${escapeHTML(goldWeightText(l))}</small>` : ''}<em>${l.telegram ? (l.telegram.startsWith('+') ? '' : '@') + escapeHTML(l.telegram) : 'មិនទាន់មាន Telegram'}</em></span></div>
     <div class="loan-number"><strong>${money(l.amountMinor, l.currency)}</strong><small>${money(monthlyCents(l), l.currency)} / ខែ · ${l.interestMode === 'fixed' ? 'ចំនួនថេរ' : l.rateBps / 100 + '%'}</small></div>
     <div><span class="due-text">${l.closedAt ? 'បិទនៅ ' + khDate(l.closedAt) : khDate(nextDue(l))}</span><span class="badge ${state}">${labels[state]}</span>${missed > 1 ? `<span class="missed">មិនទាន់បង់ ${missed} ខែ</span>` : ''}</div>
     <div class="row-actions">${tg ? `<a class="telegram" href="${escapeHTML(tg)}" target="_blank" rel="noopener noreferrer">✉ បើក Telegram ↗</a>` : ''}${!l.closedAt ? `<button class="action-small" data-action="pay" data-id="${escapeHTML(l.id)}">✓ កត់ត្រាប្រាក់បានបង់</button>` : ''}<button class="action-small" data-action="edit" data-id="${escapeHTML(l.id)}">កែព័ត៌មាន</button>${!l.closedAt ? `<button class="action-small close" data-action="close" data-id="${escapeHTML(l.id)}">បញ្ចប់ការបញ្ចាំ</button>` : ''}</div>
@@ -138,6 +141,21 @@ function previewInterest() {
     ? `ការប្រាក់ប្រចាំខែ៖ ${money(interest, currency)} (${fixed ? 'ចំនួនថេរ' : `ប្រាក់ដើម ${money(amount, currency)} × ${bps / 100}%`})`
     : 'បញ្ចូលប្រាក់ដើម និងការប្រាក់ ដើម្បីមើលចំនួនត្រូវបង់ក្នុងមួយខែ។';
 }
+function updateItemFields() {
+  const form = $('loanForm');
+  const category = control(form, 'itemCategory').value;
+  const gold = control(form, 'isGold');
+  if (category === 'gold') gold.checked = true;
+  gold.disabled = category === 'gold';
+  const enabled = gold.checked;
+  $('goldFields').hidden = !enabled;
+  control(form, 'goldWeight').disabled = !enabled;
+  control(form, 'goldWeight').required = enabled;
+  control(form, 'goldUnit').disabled = !enabled;
+  control(form, 'itemDetails').required = category === 'other';
+  control(form, 'itemDetails').placeholder = category === 'other'
+    ? 'សរសេរឈ្មោះទំនិញ' : 'ឧ. ម៉ូដែល ពណ៌ ឬលេខសម្គាល់';
+}
 function openForm(loan = null) {
   stopQR();
   editingId = loan?.id ?? null;
@@ -145,7 +163,11 @@ function openForm(loan = null) {
   form.reset();
   $('modalTitle').textContent = loan ? 'កែព័ត៌មានការបញ្ចាំ' : 'បន្ថែមការបញ្ចាំ';
   control(form, 'customer').value = loan?.customer ?? '';
-  control(form, 'item').value = loan?.item ?? '';
+  control(form, 'itemCategory').value = loan?.itemCategory ?? '';
+  control(form, 'itemDetails').value = loan?.itemDetails ?? '';
+  control(form, 'isGold').checked = !!loan?.isGold;
+  control(form, 'goldWeight').value = loan?.goldWeightMilli ? String(loan.goldWeightMilli / 1000) : '';
+  control(form, 'goldUnit').value = loan?.goldUnit ?? 'g';
   control(form, 'currency').value = loan?.currency ?? 'USD';
   control(form, 'interestMode').value = loan?.interestMode ?? 'percent';
   control(form, 'amount').value = loan ? displayAmount(loan.amountMinor, loan.currency) : '';
@@ -159,6 +181,7 @@ function openForm(loan = null) {
   const locked = !!loan && (loan.payments.length > 0 || !!loan.closedAt);
   for (const field of ['currency', 'interestMode', 'amount', 'start']) control(form, field).disabled = locked;
   $('lockedTerms').hidden = !locked;
+  updateItemFields();
   previewInterest();
   $('loanModal').hidden = false;
   control(form, 'customer').focus();
@@ -278,6 +301,14 @@ $('cancelModal').addEventListener('click', closeForm);
 $('loanModal').addEventListener('click', event => { if (event.target === $('loanModal')) closeForm(); });
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('loanModal').hidden) closeForm(); });
 $('loanForm').addEventListener('input', previewInterest);
+$('loanForm').addEventListener('change', event => {
+  const form = $('loanForm');
+  if (event.target === control(form, 'itemCategory')) {
+    if (event.target.value !== 'gold' && control(form, 'isGold').disabled) control(form, 'isGold').checked = false;
+    updateItemFields();
+  }
+  if (event.target === control(form, 'isGold')) updateItemFields();
+});
 $('loanForm').addEventListener('submit', event => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -286,7 +317,11 @@ $('loanForm').addEventListener('submit', event => {
   const raw = {
     id: previous?.id ?? crypto.randomUUID(),
     customer: control(form, 'customer').value,
-    item: control(form, 'item').value,
+    itemCategory: control(form, 'itemCategory').value,
+    itemDetails: control(form, 'itemDetails').value,
+    isGold: control(form, 'itemCategory').value === 'gold' || control(form, 'isGold').checked,
+    goldWeightMilli: control(form, 'isGold').checked ? Math.round(Number(control(form, 'goldWeight').value) * 1000) : 0,
+    goldUnit: control(form, 'isGold').checked ? control(form, 'goldUnit').value : null,
     telegram: control(form, 'telegram').value,
     phone: control(form, 'phone').value,
     notes: control(form, 'notes').value,
@@ -309,6 +344,7 @@ $('loanForm').addEventListener('submit', event => {
   } catch (error) { toast(error.message); }
 });
 $('search').addEventListener('input', render);
+$('itemFilter').addEventListener('change', render);
 document.querySelectorAll('[data-filter]').forEach(button => button.addEventListener('click', () => {
   filter = button.dataset.filter;
   render();

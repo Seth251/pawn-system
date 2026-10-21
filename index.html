@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#165a45">
   <meta name="description" content="ប្រព័ន្ធតាមដានការបញ្ចាំ ការប្រាក់ប្រចាំខែ និងសាររំលឹកតាម Telegram">
-  <title>ប្រព័ន្ធបញ្ចាំ · តាមដានការប្រាក់ប្រចាំខែ</title>
+  <title>ប្រព័ន្ធគ្រប់គ្រងការបញ្ជាំ</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -16,7 +16,7 @@
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <a class="brand" href="./" aria-label="ទំព័រដើម"><span class="brand-mark">៛</span><span>កត់ត្រាបញ្ចាំ</span></a>
+      <a class="brand" href="./" aria-label="ទំព័រដើម"><span class="brand-mark">៛</span><span>គ្រប់គ្រងការបញ្ជាំ</span></a>
       <div class="workspace"><span class="workspace-avatar">ក</span><span><strong>អាជីវកម្មរបស់ខ្ញុំ</strong><small>ផ្ទាំងគ្រប់គ្រងផ្ទាល់ខ្លួន</small></span></div>
       <p class="sidebar-label">ម៉ឺនុយ</p>
       <nav aria-label="តម្រងការបញ្ចាំ">
@@ -29,10 +29,10 @@
     </aside>
 
     <div class="main-area">
-      <header class="topbar"><span>ផ្ទាំងគ្រប់គ្រង <span class="crumb">›</span> ទិដ្ឋភាពទូទៅ</span><time id="headerDate"></time></header>
+      <header class="topbar"><span>ប្រព័ន្ធគ្រប់គ្រងការបញ្ជាំ <span class="crumb">›</span> ទិដ្ឋភាពទូទៅ</span><time id="headerDate"></time></header>
       <main>
         <section class="heading">
-          <div><p class="eyebrow">គ្រប់គ្រងការប្រាក់ឱ្យច្បាស់លាស់</p><h1>ដឹងថានរណាត្រូវបង់ថ្ងៃនេះ<span>.</span></h1><p class="heading-sub">កត់ត្រាទំនិញ ប្រាក់ដែលឱ្យខ្ចី និងការបង់ការប្រាក់ប្រចាំខែ។</p></div>
+          <div><p class="eyebrow">ទិដ្ឋភាពទូទៅ និងការបង់ប្រាក់</p><h1>ប្រព័ន្ធគ្រប់គ្រងការបញ្ជាំ<span>.</span></h1><p class="heading-sub">មើលកិច្ចសន្យា ថ្ងៃបង់ និងទំនិញដែលបានទទួលបញ្ជាំនៅកន្លែងតែមួយ។</p></div>
           <button class="button primary" id="addLoan">＋ បន្ថែមការបញ្ចាំ</button>
         </section>
 
@@ -46,7 +46,7 @@
 
         <section class="records">
           <div class="records-heading"><div><h2>បញ្ជីការបញ្ចាំ <span id="recordCount">0</span></h2><p>ចុច Telegram ដើម្បីបើកសាររំលឹកដែលបានត្រៀមរួច។</p></div><div class="records-tools"><button type="button" class="text-button" id="exportData">↓ ទាញយកទិន្នន័យ</button><button type="button" class="text-button" id="importData">↑ ស្ដារទិន្នន័យ</button><input type="file" id="importFile" accept=".json,application/json" hidden></div></div>
-          <div class="toolbar"><div class="tabs" id="tabs"><button class="active" data-filter="active">កំពុងដំណើរការ</button><button data-filter="alert">ត្រូវរំលឹក <span id="tabAlert">0</span></button><button data-filter="closed">បានបញ្ចប់</button></div><label class="search">⌕ <input id="search" type="search" placeholder="ស្វែងរកឈ្មោះ ឬទំនិញ…" aria-label="ស្វែងរកការបញ្ចាំ"></label></div>
+          <div class="toolbar"><div class="tabs" id="tabs"><button class="active" data-filter="active">កំពុងដំណើរការ</button><button data-filter="alert">ត្រូវរំលឹក <span id="tabAlert">0</span></button><button data-filter="closed">បានបញ្ចប់</button></div><div class="record-filters"><label class="filter-select">ប្រភេទទំនិញ <select id="itemFilter" aria-label="តម្រងប្រភេទទំនិញ"><option value="all">ទាំងអស់</option><option value="gold-only">ទំនិញមាស</option><option value="gold">មាស</option><option value="necklace">ខ្សែក</option><option value="ring">ចិញ្ចៀន</option><option value="bracelet">ខ្សែដៃ</option><option value="earrings">ក្រវិល</option><option value="pendant">បន្តោងខ្សែក</option><option value="watch">នាឡិកា</option><option value="phone">ទូរស័ព្ទ</option><option value="motorcycle">ម៉ូតូ</option><option value="computer">កុំព្យូទ័រ</option><option value="other">ផ្សេងៗ</option></select></label><label class="search">⌕ <input id="search" type="search" placeholder="ស្វែងរកឈ្មោះ ឬទំនិញ…" aria-label="ស្វែងរកការបញ្ចាំ"></label></div></div>
           <div class="table-header" aria-hidden="true"><span>អតិថិជន និងទំនិញ</span><span>ប្រាក់ដើម / ការប្រាក់</span><span>ថ្ងៃបង់បន្ទាប់</span><span>សកម្មភាព</span></div>
           <div id="loanList" aria-live="polite"></div>
           <div class="records-footer"><span>◈ គាំទ្រ USD និង រៀល KHR · មិនប្តូរអត្រាប្រាក់</span><span>ថ្ងៃ និងម៉ោងគិតតាមប្រទេសកម្ពុជា</span></div>
@@ -56,14 +56,19 @@
     </div>
   </div>
 
-  <div class="overlay" id="loanModal" hidden><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><button class="modal-close" id="closeModal" type="button" aria-label="បិទ">✕</button><p class="eyebrow">ព័ត៌មានកិច្ចសន្យា</p><h2 id="modalTitle">បន្ថែមការបញ្ចាំ</h2><p class="modal-sub">បំពេញព័ត៌មានខាងក្រោម ហើយកម្មវិធីនឹងគណនាការប្រាក់ឱ្យអ្នក។</p>
+  <div class="overlay" id="loanModal" hidden><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><button class="modal-close" id="closeModal" type="button" aria-label="បិទ">✕</button><p class="eyebrow">កំណត់ត្រាថ្មី</p><h2 id="modalTitle">បន្ថែមការបញ្ចាំ</h2><p class="modal-sub">ជ្រើសប្រភេទទំនិញ ហើយបញ្ចូលតែព័ត៌មានដែលពាក់ព័ន្ធ។</p>
     <form id="loanForm">
+      <h3 class="form-section">១ · អតិថិជន និងទំនិញ</h3>
       <label>ឈ្មោះអតិថិជន<input name="customer" required maxlength="100" placeholder="ឧទាហរណ៍៖ សុខ ដារ៉ា" autocomplete="name"></label>
-      <label>ឈ្មោះទំនិញដែលដាក់បញ្ចាំ<input name="item" required maxlength="200" placeholder="ឧទាហរណ៍៖ ទូរស័ព្ទ iPhone 15"></label>
+      <div class="form-row"><label>ប្រភេទទំនិញ<select name="itemCategory" required><option value="" selected disabled>ជ្រើសប្រភេទទំនិញ</option><option value="gold">មាស</option><option value="necklace">ខ្សែក</option><option value="ring">ចិញ្ចៀន</option><option value="bracelet">ខ្សែដៃ</option><option value="earrings">ក្រវិល</option><option value="pendant">បន្តោងខ្សែក</option><option value="watch">នាឡិកា</option><option value="phone">ទូរស័ព្ទ</option><option value="motorcycle">ម៉ូតូ</option><option value="computer">កុំព្យូទ័រ</option><option value="other">ផ្សេងៗ</option></select></label><label>ព័ត៌មានបន្ថែម (បើមាន)<input name="itemDetails" maxlength="200" placeholder="ឧ. ម៉ូដែល ពណ៌ ឬលេខសម្គាល់"></label></div>
+      <label class="check-label"><input name="isGold" type="checkbox"> ទំនិញនេះធ្វើពីមាស <small>សម្រាប់ខ្សែក ចិញ្ចៀន ឬទំនិញផ្សេងដែលជាមាស</small></label>
+      <div class="gold-fields form-row" id="goldFields" hidden><label>ទម្ងន់មាស<input name="goldWeight" type="number" min="0.001" max="1000000" step="0.001" inputmode="decimal" placeholder="ឧ. 2.5" disabled></label><label>ឯកតាទម្ងន់<select name="goldUnit" disabled><option value="g">ក្រាម</option><option value="chi">ជី</option><option value="damlung">តម្លឹង</option></select></label><p>កត់ត្រាឯកតាដែលអ្នកប្រើពិតប្រាកដ។ កម្មវិធីមិនបម្លែងឯកតាទម្ងន់ទេ។</p></div>
+      <h3 class="form-section">២ · ប្រាក់ និងថ្ងៃបង់</h3>
       <div class="form-row"><label>រូបិយប័ណ្ណ<select name="currency"><option value="USD">ដុល្លារ (USD $)</option><option value="KHR">រៀល (KHR ៛)</option></select></label><label id="amountLabel">ប្រាក់ដែលឱ្យខ្ចី ($)<input name="amount" type="number" min="0.01" max="100000000" step="0.01" required placeholder="100.00"></label></div>
       <div class="form-row"><label>របៀបគិតការប្រាក់ប្រចាំខែ<select name="interestMode"><option value="percent">ភាគរយ (%)</option><option value="fixed">ចំនួនប្រាក់ថេរ</option></select></label><label id="rateLabel">ការប្រាក់ប្រចាំខែ (%)<input name="rate" type="number" min="0.01" max="100" step="0.01" required value="3"></label><label id="fixedLabel" hidden>ការប្រាក់ថេរប្រចាំខែ ($)<input name="fixed" type="number" min="0.01" max="100000000" step="0.01" placeholder="3.00" disabled></label></div>
       <div class="calculation" id="interestPreview">បើឱ្យខ្ចី $100 ក្នុងអត្រា 3% ការប្រាក់គឺ $3 ក្នុងមួយខែ។</div>
       <label>ថ្ងៃឱ្យខ្ចី<input name="start" type="date" min="2000-01-01" required></label>
+      <h3 class="form-section">៣ · ទំនាក់ទំនង និងចំណាំ</h3>
       <label>គណនី Telegram របស់អតិថិជន
         <span class="telegram-entry"><input name="telegram" maxlength="100" placeholder="@username ឬ +855…"><button type="button" class="button secondary" id="scanTelegramQR">▣ ស្កេន QR</button></span>
         <small>ស្កេន QR គណនី Telegram ឬបញ្ចូល username / លេខទូរស័ព្ទអន្តរជាតិ។ អាចទុកទំនេរបាន ហើយបន្ថែមពេលក្រោយ។</small>

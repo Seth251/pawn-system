@@ -1,6 +1,16 @@
 export const STORAGE_KEY = 'pawn-kh-v1';
 export const MAX_CENTS = 10_000_000_000;
 export const MAX_RIEL = 1_000_000_000_000;
+export const ITEM_CATEGORIES = Object.freeze({
+  gold: 'មាស', necklace: 'ខ្សែក', ring: 'ចិញ្ចៀន', bracelet: 'ខ្សែដៃ',
+  earrings: 'ក្រវិល', pendant: 'បន្តោងខ្សែក', watch: 'នាឡិកា',
+  phone: 'ទូរស័ព្ទ', motorcycle: 'ម៉ូតូ', computer: 'កុំព្យូទ័រ', other: 'ផ្សេងៗ'
+});
+export const GOLD_UNITS = Object.freeze({ g: 'ក្រាម', chi: 'ជី', damlung: 'តម្លឹង' });
+export function goldWeightText(loan) {
+  if (!loan.isGold || !loan.goldWeightMilli) return '';
+  return `${(loan.goldWeightMilli / 1000).toLocaleString('en-US', { maximumFractionDigits: 3 })} ${GOLD_UNITS[loan.goldUnit]}`;
+}
 
 export function todayKH(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -89,7 +99,13 @@ export function telegramURL(loan, date = todayKH()) {
 export function normalizeLoan(raw, date = todayKH()) {
   if (!raw || typeof raw !== 'object') throw Error('ព័ត៌មានការបញ្ចាំមិនត្រឹមត្រូវ');
   const customer = String(raw.customer ?? '').trim();
-  const item = String(raw.item ?? '').trim();
+  const itemCategory = raw.itemCategory ?? 'other';
+  const itemDetails = String(raw.itemDetails ?? (raw.itemCategory ? '' : raw.item ?? '')).trim();
+  const item = itemCategory === 'other' ? itemDetails :
+    `${ITEM_CATEGORIES[itemCategory] ?? ''}${itemDetails ? ' · ' + itemDetails : ''}`;
+  const isGold = raw.isGold === true || itemCategory === 'gold';
+  const goldWeightMilli = Number(raw.goldWeightMilli ?? 0);
+  const goldUnit = raw.goldUnit ?? null;
   const telegram = normalizeTelegram(raw.telegram);
   const phone = String(raw.phone ?? '').trim();
   const notes = String(raw.notes ?? '').trim();
@@ -98,13 +114,19 @@ export function normalizeLoan(raw, date = todayKH()) {
   const amountMinor = Number(raw.amountMinor ?? raw.amountCents);
   const rateBps = Number(raw.rateBps ?? 0);
   const fixedMinor = Number(raw.fixedMinor ?? 0);
-  if (!customer || customer.length > 100 || !item || item.length > 200 || telegram === null || phone.length > 40 || notes.length > 500 ||
+  if (!customer || customer.length > 100 || !Object.hasOwn(ITEM_CATEGORIES, itemCategory) ||
+      itemDetails.length > 200 || !item || item.length > 200 ||
+      (raw.isGold !== undefined && typeof raw.isGold !== 'boolean') ||
+      !Number.isSafeInteger(goldWeightMilli) ||
+      (isGold ? goldWeightMilli < 1 || goldWeightMilli > 1_000_000_000 || !Object.hasOwn(GOLD_UNITS, goldUnit)
+        : goldWeightMilli !== 0 || goldUnit !== null) ||
+      telegram === null || phone.length > 40 || notes.length > 500 ||
       !['USD', 'KHR'].includes(currency) || !['percent', 'fixed'].includes(interestMode) ||
       !Number.isSafeInteger(amountMinor) || amountMinor < 1 || amountMinor > (currency === 'KHR' ? MAX_RIEL : MAX_CENTS) ||
       !Number.isInteger(rateBps) || (interestMode === 'percent' ? rateBps < 1 || rateBps > 10000 : rateBps !== 0) ||
       !Number.isSafeInteger(fixedMinor) || (interestMode === 'fixed' ? fixedMinor < 1 || fixedMinor > (currency === 'KHR' ? MAX_RIEL : MAX_CENTS) : fixedMinor !== 0) ||
       !validDate(raw.start) || raw.start < '2000-01-01' || raw.start > date) {
-    throw Error('សូមពិនិត្យឈ្មោះ ទំនិញ ចំនួនប្រាក់ ថ្ងៃឱ្យខ្ចី អត្រាការប្រាក់ និង Telegram');
+    throw Error('សូមពិនិត្យឈ្មោះ ប្រភេទទំនិញ ទម្ងន់មាស ប្រាក់ ថ្ងៃ និងព័ត៌មាន Telegram។');
   }
   if (interestMode === 'percent' && Math.round(amountMinor * rateBps / 10000) < 1) {
     throw Error('ការប្រាក់ប្រចាំខែតិចជាងចំនួនប្រាក់តូចបំផុត។ សូមបង្កើនភាគរយ ឬជ្រើសចំនួនថេរ។');
@@ -123,7 +145,9 @@ export function normalizeLoan(raw, date = todayKH()) {
   const closedAt = raw.closedAt ?? null;
   if (closedAt !== null && (!validDate(closedAt) || closedAt > date)) throw Error('ថ្ងៃបញ្ចប់មិនត្រឹមត្រូវ');
   return { id: typeof raw.id === 'string' && /^[a-zA-Z0-9-]{1,100}$/.test(raw.id) ? raw.id : crypto.randomUUID(),
-    customer, item, telegram, phone, notes, currency, interestMode, amountMinor, rateBps, fixedMinor, start: raw.start, payments: normalizedPayments, closedAt };
+    customer, item, itemCategory, itemDetails, isGold, goldWeightMilli, goldUnit,
+    telegram, phone, notes, currency, interestMode, amountMinor, rateBps, fixedMinor,
+    start: raw.start, payments: normalizedPayments, closedAt };
 }
 
 export function importBackup(parsed, date = todayKH()) {

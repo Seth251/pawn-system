@@ -20,9 +20,9 @@ test('pawn can be added with item and monthly interest, then edited', () => {
   document.getElementById('addLoan').click();
   const form = document.getElementById('loanForm');
   const field = name => form.elements.namedItem(name);
-  assert.equal(typeof form.elements.item, 'function', 'item collides with the collection method');
   field('customer').value = 'សុខ ដារ៉ា';
-  field('item').value = 'iPhone 15';
+  field('itemCategory').value = 'phone';
+  field('itemDetails').value = 'iPhone 15';
   field('amount').value = '100';
   field('rate').value = '3';
   field('start').value = '2026-10-20';
@@ -30,13 +30,14 @@ test('pawn can be added with item and monthly interest, then edited', () => {
   form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
   const records = JSON.parse(localStorage.getItem('pawn-kh-v1')).loans;
   assert.equal(records.length, 1);
-  assert.equal(records[0].item, 'iPhone 15');
+  assert.equal(records[0].item, 'ទូរស័ព្ទ · iPhone 15');
   assert.equal(records[0].amountMinor, 10000);
   assert.equal(records[0].currency, 'USD');
   assert.equal(records[0].rateBps, 300);
   assert.match(document.getElementById('loanList').textContent, /iPhone 15/);
   document.querySelector('[data-action="edit"]').click();
-  assert.equal(field('item').value, 'iPhone 15');
+  assert.equal(field('itemDetails').value, 'iPhone 15');
+  assert.equal(field('itemCategory').value, 'phone');
 });
 
 test('riel percentage and fixed dollar contracts save, show separate totals, and record payments', () => {
@@ -45,7 +46,7 @@ test('riel percentage and fixed dollar contracts save, show separate totals, and
   document.getElementById('closeModal').click();
   document.getElementById('addLoan').click();
   field('customer').value = 'វិសាល';
-  field('item').value = 'ម៉ូតូ';
+  field('itemCategory').value = 'motorcycle';
   field('currency').value = 'KHR';
   field('currency').dispatchEvent(new window.Event('input', { bubbles: true }));
   field('amount').value = '100000';
@@ -63,7 +64,13 @@ test('riel percentage and fixed dollar contracts save, show separate totals, and
 
   document.getElementById('addLoan').click();
   field('customer').value = 'លីណា';
-  field('item').value = 'ចិញ្ចៀន';
+  field('itemCategory').value = 'ring';
+  field('itemCategory').dispatchEvent(new window.Event('change', { bubbles: true }));
+  field('isGold').checked = true;
+  field('isGold').dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(document.getElementById('goldFields').hidden, false);
+  field('goldWeight').value = '2.5';
+  field('goldUnit').value = 'chi';
   field('currency').value = 'USD';
   field('interestMode').value = 'fixed';
   field('interestMode').dispatchEvent(new window.Event('input', { bubbles: true }));
@@ -76,7 +83,30 @@ test('riel percentage and fixed dollar contracts save, show separate totals, and
   assert.equal(records[2].interestMode, 'fixed');
   assert.equal(records[2].fixedMinor, 750);
   assert.equal(records[2].rateBps, 0);
+  assert.equal(records[2].goldWeightMilli, 2500);
+  assert.equal(records[2].goldUnit, 'chi');
   assert.match(document.getElementById('loanList').textContent, /\$7\.50/);
+  assert.match(document.getElementById('loanList').textContent, /2\.5 ជី/);
+  document.getElementById('itemFilter').value = 'gold-only';
+  document.getElementById('itemFilter').dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(document.querySelectorAll('.loan-row').length, 1);
+  document.getElementById('itemFilter').value = 'all';
+  document.getElementById('itemFilter').dispatchEvent(new window.Event('change', { bubbles: true }));
+});
+
+test('gold category reveals required weight and legacy item edits retain their name', () => {
+  const form = document.getElementById('loanForm');
+  const field = name => form.elements.namedItem(name);
+  document.getElementById('addLoan').click();
+  field('itemCategory').value = 'gold';
+  field('itemCategory').dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(field('isGold').checked, true);
+  assert.equal(field('goldWeight').required, true);
+  field('itemCategory').value = 'phone';
+  field('itemCategory').dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(field('isGold').checked, false);
+  assert.equal(field('goldWeight').disabled, true);
+  document.getElementById('closeModal').click();
 });
 
 test('QR panel offers a readable fallback when camera is unavailable', () => {
