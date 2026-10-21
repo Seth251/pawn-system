@@ -7,6 +7,7 @@ export const ITEM_CATEGORIES = Object.freeze({
   phone: 'ទូរស័ព្ទ', motorcycle: 'ម៉ូតូ', computer: 'កុំព្យូទ័រ', other: 'ផ្សេងៗ'
 });
 export const GOLD_UNITS = Object.freeze({ g: 'ក្រាម', chi: 'ជី', damlung: 'តម្លឹង' });
+export const ITEM_CONDITIONS = Object.freeze({ new: 'ថ្មី', good: 'ល្អ', used: 'បានប្រើ', damaged: 'ខូចខាត' });
 export function goldWeightText(loan) {
   if (!loan.isGold || !loan.goldWeightMilli) return '';
   return `${(loan.goldWeightMilli / 1000).toLocaleString('en-US', { maximumFractionDigits: 3 })} ${GOLD_UNITS[loan.goldUnit]}`;
@@ -39,12 +40,29 @@ export function monthlyCents(loan) {
   if (loan.interestMode === 'fixed') return loan.fixedMinor;
   return Math.round((loan.amountMinor ?? loan.amountCents) * loan.rateBps / 10000);
 }
-export function nextDue(loan) { return dueDate(loan.start, loan.payments.length + 1); }
+export function interestPaid(loan) {
+  return loan.payments.reduce((sum, p) => sum + (p.amountMinor ?? p.amountCents), 0);
+}
+export function principalRemaining(loan) {
+  if (loan.closedAt) return 0;
+  return (loan.amountMinor ?? loan.amountCents) - (loan.principalPayments ?? []).reduce((sum, p) => sum + p.amountMinor, 0);
+}
+export function coveredMonths(loan) {
+  return Math.min(1199, Math.floor(interestPaid(loan) / monthlyCents(loan)));
+}
+export function nextDue(loan) { return dueDate(loan.start, coveredMonths(loan) + 1); }
+export function dueMonths(loan, date = todayKH()) {
+  let count = 0;
+  while (count < 1200 && dueDate(loan.start, count + 1) <= date) count++;
+  return count;
+}
 export function unpaidMonths(loan, date = todayKH()) {
   if (loan.closedAt) return 0;
-  let count = 0;
-  while (loan.payments.length + count < 1200 && dueDate(loan.start, loan.payments.length + count + 1) <= date) count++;
-  return count;
+  return Math.max(0, dueMonths(loan, date) - coveredMonths(loan));
+}
+export function interestDueAmount(loan, date = todayKH()) {
+  if (loan.closedAt) return 0;
+  return Math.max(0, dueMonths(loan, date) * monthlyCents(loan) - interestPaid(loan));
 }
 export function status(loan, date = todayKH()) {
   if (loan.closedAt) return 'closed';
@@ -88,8 +106,10 @@ export function telegramFromQR(value) {
 export function reminder(loan, date = todayKH()) {
   const count = unpaidMonths(loan, date);
   const currency = loan.currency ?? 'USD';
-  const extra = count > 1 ? ` បច្ចុប្បន្នមានការប្រាក់មិនទាន់កត់ត្រា ${count} ខែ សរុប ${money(count * monthlyCents(loan), currency)}។` : '';
-  return `សួស្តី ${loan.customer} សូមរំលឹកថា ការប្រាក់ចំនួន ${money(monthlyCents(loan), currency)} សម្រាប់ ${loan.item} ត្រូវបង់នៅថ្ងៃទី ${khDate(nextDue(loan))}។${extra} សូមទាក់ទងមកយើងខ្ញុំដើម្បីរៀបចំការបង់ប្រាក់។ សូមអរគុណ។`;
+  const due = interestDueAmount(loan, date);
+  const extra = count > 1 ? ` គិតដល់ថ្ងៃនេះ នៅសល់ការប្រាក់ ${count} ខែ សរុប ${money(due, currency)}។` : '';
+  const current = monthlyCents(loan) - interestPaid(loan) % monthlyCents(loan);
+  return `សួស្តី ${loan.customer} សូមរំលឹកថា ការប្រាក់នៅសល់ ${money(current, currency)} សម្រាប់ ${loan.item} កំណត់បង់នៅថ្ងៃទី ${khDate(nextDue(loan))}។${extra} សូមទាក់ទងមកយើងខ្ញុំដើម្បីរៀបចំការបង់ប្រាក់។ សូមអរគុណ។`;
 }
 export function telegramURL(loan, date = todayKH()) {
   const username = normalizeTelegram(loan.telegram);
@@ -109,6 +129,9 @@ export function normalizeLoan(raw, date = todayKH()) {
   const telegram = normalizeTelegram(raw.telegram);
   const phone = String(raw.phone ?? '').trim();
   const notes = String(raw.notes ?? '').trim();
+  const itemCondition = raw.itemCondition ?? '';
+  const storageLocation = String(raw.storageLocation ?? '').trim();
+  const serialNumber = String(raw.serialNumber ?? '').trim();
   const currency = raw.currency ?? 'USD';
   const interestMode = raw.interestMode ?? 'percent';
   const amountMinor = Number(raw.amountMinor ?? raw.amountCents);
@@ -120,6 +143,8 @@ export function normalizeLoan(raw, date = todayKH()) {
       !Number.isSafeInteger(goldWeightMilli) ||
       (isGold ? goldWeightMilli < 1 || goldWeightMilli > 1_000_000_000 || !Object.hasOwn(GOLD_UNITS, goldUnit)
         : goldWeightMilli !== 0 || goldUnit !== null) ||
+      (itemCondition && !Object.hasOwn(ITEM_CONDITIONS, itemCondition)) ||
+      storageLocation.length > 100 || serialNumber.length > 100 ||
       telegram === null || phone.length > 40 || notes.length > 500 ||
       !['USD', 'KHR'].includes(currency) || !['percent', 'fixed'].includes(interestMode) ||
       !Number.isSafeInteger(amountMinor) || amountMinor < 1 || amountMinor > (currency === 'KHR' ? MAX_RIEL : MAX_CENTS) ||
@@ -132,27 +157,48 @@ export function normalizeLoan(raw, date = todayKH()) {
     throw Error('ការប្រាក់ប្រចាំខែតិចជាងចំនួនប្រាក់តូចបំផុត។ សូមបង្កើនភាគរយ ឬជ្រើសចំនួនថេរ។');
   }
   const payments = raw.payments ?? [];
-  if (!Array.isArray(payments) || payments.length > 1199) throw Error('ប្រវត្តិបង់ប្រាក់មិនត្រឹមត្រូវ');
+  if (!Array.isArray(payments) || payments.length > 10000) throw Error('ប្រវត្តិបង់ប្រាក់មិនត្រឹមត្រូវ');
   const normalizedPayments = payments.map((p, index) => {
     const paidMinor = p?.amountMinor ?? p?.amountCents;
     const monthly = interestMode === 'fixed' ? fixedMinor : Math.round(amountMinor * rateBps / 10000);
-    if (!p || p.period !== index + 1 || paidMinor !== monthly ||
+    if (!p || !Number.isSafeInteger(paidMinor) || paidMinor < 1 ||
+        (p.period !== undefined && (p.period !== index + 1 || paidMinor !== monthly)) ||
         !validDate(p.paidAt) || p.paidAt > date || typeof p.id !== 'string' || p.id.length > 100) {
       throw Error('ប្រវត្តិបង់ប្រាក់មិនត្រឹមត្រូវ');
     }
-    return { id: p.id, period: p.period, amountMinor: paidMinor, paidAt: p.paidAt };
+    return { id: p.id, ...(p.period !== undefined ? { period: p.period } : {}), amountMinor: paidMinor, paidAt: p.paidAt };
   });
+  const monthly = interestMode === 'fixed' ? fixedMinor : Math.round(amountMinor * rateBps / 10000);
+  const paidInterest = normalizedPayments.reduce((sum, p) => sum + p.amountMinor, 0);
+  if (!Number.isSafeInteger(paidInterest) || paidInterest > monthly * 1199 ||
+      new Set(normalizedPayments.map(p => p.id)).size !== normalizedPayments.length) {
+    throw Error('ប្រាក់ការប្រាក់ដែលបានកត់ត្រាលើសចំនួនអាចបង់។');
+  }
+  const principalPayments = raw.principalPayments ?? [];
+  if (!Array.isArray(principalPayments) || principalPayments.length > 10000) throw Error('ប្រវត្តិសងប្រាក់ដើមមិនត្រឹមត្រូវ');
+  const normalizedPrincipal = principalPayments.map(p => {
+    if (!p || !Number.isSafeInteger(p.amountMinor) || p.amountMinor < 1 ||
+        !validDate(p.paidAt) || p.paidAt > date || typeof p.id !== 'string' || p.id.length > 100) {
+      throw Error('ប្រវត្តិសងប្រាក់ដើមមិនត្រឹមត្រូវ');
+    }
+    return { id: p.id, amountMinor: p.amountMinor, paidAt: p.paidAt };
+  });
+  if (normalizedPrincipal.reduce((sum, p) => sum + p.amountMinor, 0) > amountMinor ||
+      new Set(normalizedPrincipal.map(p => p.id)).size !== normalizedPrincipal.length) {
+    throw Error('ប្រាក់ដើមដែលបានកត់ត្រាលើសប្រាក់ដើម។');
+  }
   const closedAt = raw.closedAt ?? null;
   if (closedAt !== null && (!validDate(closedAt) || closedAt > date)) throw Error('ថ្ងៃបញ្ចប់មិនត្រឹមត្រូវ');
   return { id: typeof raw.id === 'string' && /^[a-zA-Z0-9-]{1,100}$/.test(raw.id) ? raw.id : crypto.randomUUID(),
     customer, item, itemCategory, itemDetails, isGold, goldWeightMilli, goldUnit,
+    itemCondition, storageLocation, serialNumber,
     telegram, phone, notes, currency, interestMode, amountMinor, rateBps, fixedMinor,
-    start: raw.start, payments: normalizedPayments, closedAt };
+    start: raw.start, payments: normalizedPayments, principalPayments: normalizedPrincipal, closedAt };
 }
 
 export function importBackup(parsed, date = todayKH()) {
   if (!parsed || !Array.isArray(parsed.loans) ||
-      !([1, 2].includes(parsed.version) || (parsed.version === undefined && typeof parsed.exported === 'string'))) {
+      !([1, 2, 3].includes(parsed.version) || (parsed.version === undefined && typeof parsed.exported === 'string'))) {
     throw Error('ទម្រង់ឯកសារមិនត្រឹមត្រូវ។');
   }
   const legacy = parsed.version === undefined;

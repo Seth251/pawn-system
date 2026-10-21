@@ -51,7 +51,7 @@
           <div id="loanList" aria-live="polite"></div>
           <div class="records-footer"><span>◈ គាំទ្រ USD និង រៀល KHR · មិនប្តូរអត្រាប្រាក់</span><span>ថ្ងៃ និងម៉ោងគិតតាមប្រទេសកម្ពុជា</span></div>
         </section>
-        <p class="footnote">ការបង់ការប្រាក់មិនបន្ថយប្រាក់ដើមទេ។ ថ្ងៃបង់ប្រចាំខែគិតតាមថ្ងៃដើមដែលបានឱ្យខ្ចី។</p>
+        <p class="footnote">ការបង់ការប្រាក់ និងប្រាក់ដើមកត់ត្រាដាច់ដោយឡែក។ ការបង់ប្រាក់ដើមមិនប្ដូរការប្រាក់ប្រចាំខែដោយស្វ័យប្រវត្តិទេ។</p>
       </main>
     </div>
   </div>
@@ -63,6 +63,8 @@
       <div class="form-row"><label>ប្រភេទទំនិញ<select name="itemCategory" required><option value="" selected disabled>ជ្រើសប្រភេទទំនិញ</option><option value="gold">មាស</option><option value="necklace">ខ្សែក</option><option value="ring">ចិញ្ចៀន</option><option value="bracelet">ខ្សែដៃ</option><option value="earrings">ក្រវិល</option><option value="pendant">បន្តោងខ្សែក</option><option value="watch">នាឡិកា</option><option value="phone">ទូរស័ព្ទ</option><option value="motorcycle">ម៉ូតូ</option><option value="computer">កុំព្យូទ័រ</option><option value="other">ផ្សេងៗ</option></select></label><label>ព័ត៌មានបន្ថែម (បើមាន)<input name="itemDetails" maxlength="200" placeholder="ឧ. ម៉ូដែល ពណ៌ ឬលេខសម្គាល់"></label></div>
       <label class="check-label"><input name="isGold" type="checkbox"> ទំនិញនេះធ្វើពីមាស <small>សម្រាប់ខ្សែក ចិញ្ចៀន ឬទំនិញផ្សេងដែលជាមាស</small></label>
       <div class="gold-fields form-row" id="goldFields" hidden><label>ទម្ងន់មាស<input name="goldWeight" type="number" min="0.001" max="1000000" step="0.001" inputmode="decimal" placeholder="ឧ. 2.5" disabled></label><label>ឯកតាទម្ងន់<select name="goldUnit" disabled><option value="g">ក្រាម</option><option value="chi">ជី</option><option value="damlung">តម្លឹង</option></select></label><p>កត់ត្រាឯកតាដែលអ្នកប្រើពិតប្រាកដ។ កម្មវិធីមិនបម្លែងឯកតាទម្ងន់ទេ។</p></div>
+      <div class="form-row"><label>ស្ថានភាពទំនិញ<select name="itemCondition"><option value="">មិនបានកំណត់</option><option value="new">ថ្មី</option><option value="good">ល្អ</option><option value="used">បានប្រើ</option><option value="damaged">ខូចខាត</option></select></label><label>ទីតាំងរក្សាទុក<input name="storageLocation" maxlength="100" placeholder="ឧ. ទូ A · ថត 2"></label></div>
+      <label>លេខសម្គាល់ / លេខស៊េរី (បើមាន)<input name="serialNumber" maxlength="100" placeholder="ឧ. លេខស៊េរីរបស់ទូរស័ព្ទ"></label>
       <h3 class="form-section">២ · ប្រាក់ និងថ្ងៃបង់</h3>
       <div class="form-row"><label>រូបិយប័ណ្ណ<select name="currency"><option value="USD">ដុល្លារ (USD $)</option><option value="KHR">រៀល (KHR ៛)</option></select></label><label id="amountLabel">ប្រាក់ដែលឱ្យខ្ចី ($)<input name="amount" type="number" min="0.01" max="100000000" step="0.01" required placeholder="100.00"></label></div>
       <div class="form-row"><label>របៀបគិតការប្រាក់ប្រចាំខែ<select name="interestMode"><option value="percent">ភាគរយ (%)</option><option value="fixed">ចំនួនប្រាក់ថេរ</option></select></label><label id="rateLabel">ការប្រាក់ប្រចាំខែ (%)<input name="rate" type="number" min="0.01" max="100" step="0.01" required value="3"></label><label id="fixedLabel" hidden>ការប្រាក់ថេរប្រចាំខែ ($)<input name="fixed" type="number" min="0.01" max="100000000" step="0.01" placeholder="3.00" disabled></label></div>
@@ -81,6 +83,10 @@
       <div class="modal-actions"><button type="button" class="button secondary" id="cancelModal">បោះបង់</button><button type="submit" class="button primary">រក្សាទុកការបញ្ចាំ</button></div>
     </form>
   </section></div>
+  <div class="overlay" id="paymentModal" hidden><section class="modal payment-modal" role="dialog" aria-modal="true" aria-labelledby="paymentTitle"><button class="modal-close" id="closePayment" type="button" aria-label="បិទ">✕</button><p class="eyebrow">ប្រវត្តិបង់ប្រាក់</p><h2 id="paymentTitle">កត់ត្រាប្រាក់បានបង់</h2><p class="modal-sub" id="paymentContext"></p>
+    <form id="paymentForm"><label>ប្រភេទការបង់<select name="paymentType"><option value="interest">ការប្រាក់</option><option value="principal">ប្រាក់ដើម</option></select></label><div class="payment-summary" id="paymentSummary" aria-live="polite"></div><label id="paymentAmountLabel">ចំនួនដែលបានទទួល<input name="paymentAmount" type="number" required inputmode="decimal"></label><label>ថ្ងៃទទួលប្រាក់<input name="paymentDate" type="date" required min="2000-01-01"></label><p class="form-hint">ការបង់ប្រាក់ដើមមិនប្ដូរអត្រាការប្រាក់ប្រចាំខែដោយស្វ័យប្រវត្តិទេ។</p><div class="modal-actions"><button type="button" class="button secondary" id="cancelPayment">បោះបង់</button><button type="submit" class="button primary">រក្សាទុកការបង់ប្រាក់</button></div></form>
+  </section></div>
+  <div class="overlay" id="receiptModal" hidden><section class="modal receipt-modal" role="dialog" aria-modal="true" aria-labelledby="receiptTitle"><button class="modal-close" id="closeReceipt" type="button" aria-label="បិទ">✕</button><div id="receiptSheet" class="receipt-sheet"></div><div class="modal-actions receipt-controls"><button type="button" class="button secondary" id="cancelReceipt">បិទ</button><button type="button" class="button primary" id="printReceipt">បោះពុម្ព / រក្សាទុក PDF</button></div></section></div>
   <div class="toast" id="toast" role="status" hidden></div>
 </body>
 </html>

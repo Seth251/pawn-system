@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dueDate, monthlyCents, nextDue, unpaidMonths, status, normalizeLoan, reminder, telegramURL, telegramFromQR, importBackup, money, goldWeightText } from '../core.mjs';
+import { dueDate, monthlyCents, nextDue, unpaidMonths, status, normalizeLoan, reminder, telegramURL, telegramFromQR, importBackup, money, goldWeightText, interestDueAmount, principalRemaining } from '../core.mjs';
 const base = { id: 'loan-1', customer: 'ដារ៉ា', item: 'ទូរស័ព្ទ', telegram: 'Dara_123', phone: '', notes: '', amountCents: 10000, rateBps: 300, start: '2026-07-20', payments: [], closedAt: null };
 test('3% monthly interest is $3 per $100, using cents', () => {
   assert.equal(monthlyCents(base), 300);
@@ -20,6 +20,20 @@ test('late payment clears one missed month without erasing older dues', () => {
   assert.equal(unpaidMonths(paid, '2026-10-20'), 2);
   assert.equal(status(paid, '2026-10-20'), 'overdue');
   assert.equal(status({ ...paid, closedAt: '2026-10-20' }, '2026-10-20'), 'closed');
+});
+test('partial interest stays due until paid, while principal payments reduce balance', () => {
+  const loan = normalizeLoan({ ...base, payments: [{ id: 'part1', amountMinor: 125, paidAt: '2026-08-20' }],
+    principalPayments: [{ id: 'principal1', amountMinor: 2500, paidAt: '2026-08-20' }] }, '2026-10-20');
+  assert.equal(nextDue(loan), '2026-08-20');
+  assert.equal(unpaidMonths(loan, '2026-10-20'), 3);
+  assert.equal(interestDueAmount(loan, '2026-10-20'), 775);
+  assert.equal(principalRemaining(loan), 7500);
+  assert.equal(monthlyCents(loan), 300, 'the original monthly term remains fixed');
+  assert.equal(status(loan, '2026-10-20'), 'overdue');
+  const paid = normalizeLoan({ ...loan, payments: [...loan.payments, { id: 'part2', amountMinor: 175, paidAt: '2026-10-20' }] }, '2026-10-20');
+  assert.equal(nextDue(paid), '2026-09-20');
+  assert.equal(interestDueAmount(paid, '2026-10-20'), 600);
+  assert.match(reminder(loan, '2026-10-20'), /\$1\.75/);
 });
 test('normalization rejects bad dates, amounts, and unsafe Telegram contacts', () => {
   assert.equal(normalizeLoan(base, '2026-10-20').telegram, 'Dara_123');
@@ -45,6 +59,16 @@ test('old version 1 backup is converted without losing payments', () => {
   assert.equal(loan.amountMinor, 10000);
   assert.equal(loan.interestMode, 'percent');
   assert.equal(loan.payments[0].amountMinor, 300);
+  assert.deepEqual(loan.principalPayments, []);
+});
+test('version 3 backup preserves inventory and partial payment ledger, rejects overpayment', () => {
+  const loan = normalizeLoan({ ...base, itemCondition: 'used', storageLocation: 'ទូ A', serialNumber: 'SN-42',
+    payments: [{ id: 'part', amountMinor: 100, paidAt: '2026-08-20' }],
+    principalPayments: [{ id: 'principal', amountMinor: 2000, paidAt: '2026-08-20' }] }, '2026-10-20');
+  assert.deepEqual(importBackup({ version: 3, loans: [loan] }, '2026-10-20')[0], loan);
+  assert.equal(loan.storageLocation, 'ទូ A');
+  assert.throws(() => normalizeLoan({ ...loan, principalPayments: [{ id: 'too-much', amountMinor: 10001, paidAt: '2026-08-20' }] }, '2026-10-20'));
+  assert.throws(() => normalizeLoan({ ...loan, itemCondition: 'fake' }, '2026-10-20'));
 });
 test('fixed riel interest keeps currency in reminders and version 2 backups', () => {
   const loan = normalizeLoan({ ...base, currency: 'KHR', amountMinor: 100000, amountCents: undefined,
