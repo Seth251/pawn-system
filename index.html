@@ -44,8 +44,16 @@
 
         <section class="notice" id="notice" aria-live="polite"></section>
 
+        <section class="backup-panel" aria-labelledby="backupTitle">
+          <div class="backup-icon" aria-hidden="true">↧</div>
+          <div class="backup-copy"><h2 id="backupTitle">រក្សាទុក និងស្ដារទិន្នន័យ</h2>
+            <p>ចុចរក្សាទុក ដើម្បីទាញយកកំណត់ត្រាទាំងអស់ជាឯកសារ JSON ទៅក្នុង Files / Downloads លើទូរស័ព្ទ។ រក្សាច្បាប់ចម្លងនៅកន្លែងផ្សេងផង ដូចជា Drive ឬឧបករណ៍មួយទៀត។</p>
+            <p class="backup-warning">បើទិន្នន័យក្នុង browser បាត់ សូមបើកទំព័រនេះ ហើយចុច «ស្ដារពីឯកសារ»។ កម្មវិធីមិនរក្សាទុកច្បាប់ចម្លងដោយស្វ័យប្រវត្តិទេ។</p></div>
+          <div class="backup-actions"><span id="backupCount">0 កិច្ចសន្យា</span><button type="button" class="button primary" id="exportData">↓ រក្សាទុកច្បាប់បម្រុង</button><button type="button" class="button secondary" id="importData">↑ ស្ដារពីឯកសារ</button><input type="file" id="importFile" accept=".json,application/json" hidden></div>
+        </section>
+
         <section class="records">
-          <div class="records-heading"><div><h2>បញ្ជីការបញ្ចាំ <span id="recordCount">0</span></h2><p>ចុច Telegram ដើម្បីបើកសាររំលឹកដែលបានត្រៀមរួច។</p></div><div class="records-tools"><button type="button" class="text-button" id="exportData">↓ ទាញយកទិន្នន័យ</button><button type="button" class="text-button" id="importData">↑ ស្ដារទិន្នន័យ</button><input type="file" id="importFile" accept=".json,application/json" hidden></div></div>
+          <div class="records-heading"><div><h2>បញ្ជីការបញ្ចាំ <span id="recordCount">0</span></h2><p>ចុច Telegram ដើម្បីបើកសាររំលឹកដែលបានត្រៀមរួច។</p></div></div>
           <div class="toolbar"><div class="tabs" id="tabs"><button class="active" data-filter="active">កំពុងដំណើរការ</button><button data-filter="alert">ត្រូវរំលឹក <span id="tabAlert">0</span></button><button data-filter="closed">បានបញ្ចប់</button></div><div class="record-filters"><label class="filter-select">ប្រភេទទំនិញ <select id="itemFilter" aria-label="តម្រងប្រភេទទំនិញ"><option value="all">ទាំងអស់</option><option value="gold-only">ទំនិញមាស</option><option value="gold">មាស</option><option value="necklace">ខ្សែក</option><option value="ring">ចិញ្ចៀន</option><option value="bracelet">ខ្សែដៃ</option><option value="earrings">ក្រវិល</option><option value="pendant">បន្តោងខ្សែក</option><option value="watch">នាឡិកា</option><option value="phone">ទូរស័ព្ទ</option><option value="motorcycle">ម៉ូតូ</option><option value="computer">កុំព្យូទ័រ</option><option value="other">ផ្សេងៗ</option></select></label><label class="search">⌕ <input id="search" type="search" placeholder="ស្វែងរកឈ្មោះ ឬទំនិញ…" aria-label="ស្វែងរកការបញ្ចាំ"></label></div></div>
           <div class="table-header" aria-hidden="true"><span>អតិថិជន និងទំនិញ</span><span>ប្រាក់ដើម / ការប្រាក់</span><span>ថ្ងៃបង់បន្ទាប់</span><span>សកម្មភាព</span></div>
           <div id="loanList" aria-live="polite"></div>

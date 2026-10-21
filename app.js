@@ -68,6 +68,8 @@ function commit(change) {
 
 function render() {
   const date = todayKH();
+  $('backupCount').textContent = `${loans.length} កិច្ចសន្យា`;
+  $('exportData').disabled = loans.length === 0;
   const active = loans.filter(l => !l.closedAt);
   const alerts = active.filter(l => ['overdue', 'today'].includes(status(l, date)));
   const overdue = alerts.filter(l => status(l, date) === 'overdue').length;
@@ -515,14 +517,22 @@ $('loanList').addEventListener('click', event => {
   }
 });
 $('exportData').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify({ version: 3, exportedAt: new Date().toISOString(), loans }, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `pawn-system-backup-${todayKH()}.json`;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  toast('បានទាញយកឯកសារបម្រុងទុក។');
+  try {
+    const exportedAt = new Date().toISOString();
+    const blob = new Blob([JSON.stringify({ version: 3, exportedAt, loans }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `pawn-system-backup-${exportedAt.replace(/[:.]/g, '-')}.json`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    const revokeTimer = setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    revokeTimer.unref?.();
+    toast('ការទាញយកបានចាប់ផ្ដើម។ សូមពិនិត្យឯកសារក្នុង Files / Downloads។');
+  } catch {
+    toast('មិនអាចទាញយកបានទេ។ សូមសាកល្បងកម្មវិធីរុករកផ្សេង។');
+  }
 });
 $('importData').addEventListener('click', () => $('importFile').click());
 $('importFile').addEventListener('change', async event => {
@@ -532,9 +542,9 @@ $('importFile').addEventListener('change', async event => {
     if (file.size > 10_000_000) throw Error('ឯកសារធំពេក។');
     const parsed = JSON.parse(await file.text());
     const restored = importBackup(parsed);
-    if (!confirm('ការស្ដារនឹងជំនួសទិន្នន័យបច្ចុប្បន្នលើឧបករណ៍នេះ។ សូមទាញយកឯកសារបម្រុងទុកមុនបន្ត។ បន្តឬ?')) return;
-    if (commit(() => { loans = restored; })) toast('បានស្ដារទិន្នន័យរួចរាល់។');
-  } catch (error) { toast(error.message || 'មិនអាចស្ដារឯកសារនេះបានទេ។'); }
+    if (!confirm(`ឯកសារ «${file.name}» មាន ${restored.length} កិច្ចសន្យា។ ឧបករណ៍នេះមាន ${loans.length} កិច្ចសន្យា។\n\nការស្ដារនឹងជំនួសកំណត់ត្រាទាំងអស់នៅលើឧបករណ៍នេះ។ បើមានកំណត់ត្រាថ្មី សូមរក្សាទុកច្បាប់បម្រុងជាមុន។\n\nតើបន្តស្ដារឬទេ?`)) return;
+    if (commit(() => { loans = restored; })) toast(`បានស្ដារ ${restored.length} កិច្ចសន្យារួចរាល់។`);
+  } catch (error) { toast(error instanceof SyntaxError ? 'ឯកសារ JSON មិនត្រឹមត្រូវ។' : (error.message || 'មិនអាចស្ដារឯកសារនេះបានទេ។')); }
   finally { event.target.value = ''; }
 });
 window.addEventListener('storage', event => { if (event.key === STORAGE_KEY) { load(); render(); } });

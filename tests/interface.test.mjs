@@ -139,6 +139,40 @@ test('QR panel offers a readable fallback when camera is unavailable', () => {
   assert.equal(document.getElementById('qrPanel').hidden, true);
 });
 
+test('downloaded backup restores all records after browser storage is cleared', async () => {
+  const originalCreateURL = URL.createObjectURL;
+  const originalClick = window.HTMLAnchorElement.prototype.click;
+  let exportedBlob;
+  let filename;
+  URL.createObjectURL = blob => { exportedBlob = blob; return 'blob:test-backup'; };
+  window.HTMLAnchorElement.prototype.click = function () { filename = this.download; };
+  try {
+    document.getElementById('exportData').click();
+    assert.match(filename, /^pawn-system-backup-.*\.json$/);
+    const backupText = await exportedBlob.text();
+    const saved = JSON.parse(backupText);
+    assert.equal(saved.version, 3);
+    assert.ok(saved.loans.length > 0);
+    assert.equal(saved.loans.length, JSON.parse(localStorage.getItem('pawn-kh-v1')).loans.length);
+
+    localStorage.clear();
+    window.dispatchEvent(new window.StorageEvent('storage', { key: 'pawn-kh-v1' }));
+    assert.equal(document.getElementById('backupCount').textContent, '0 កិច្ចសន្យា');
+    assert.equal(document.getElementById('importData').disabled, false);
+    const input = document.getElementById('importFile');
+    Object.defineProperty(input, 'files', { configurable: true, value: [{
+      name: filename, size: exportedBlob.size, text: async () => backupText
+    }] });
+    input.dispatchEvent(new window.Event('change'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepEqual(JSON.parse(localStorage.getItem('pawn-kh-v1')).loans, saved.loans);
+    assert.equal(document.getElementById('backupCount').textContent, `${saved.loans.length} កិច្ចសន្យា`);
+  } finally {
+    URL.createObjectURL = originalCreateURL;
+    window.HTMLAnchorElement.prototype.click = originalClick;
+  }
+});
+
 test('closing an overdue pawn records remaining interest and principal before printing', () => {
   const form = document.getElementById('loanForm');
   const field = name => form.elements.namedItem(name);
