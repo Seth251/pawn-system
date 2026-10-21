@@ -139,6 +139,51 @@ test('QR panel offers a readable fallback when camera is unavailable', () => {
   assert.equal(document.getElementById('qrPanel').hidden, true);
 });
 
+test('custom item names are saved in the dropdown and reused without a loan', () => {
+  const form = document.getElementById('loanForm');
+  const field = name => form.elements.namedItem(name);
+  document.getElementById('addLoan').click();
+  field('itemCategory').value = 'phone';
+  field('itemDetails').value = 'iPhone 15';
+  document.getElementById('saveItemName').click();
+  const saved = JSON.parse(localStorage.getItem('pawn-kh-v1')).savedItems;
+  assert.deepEqual(saved, [{ category: 'phone', itemDetails: 'iPhone 15', isGold: false }]);
+  assert.equal(document.querySelector('#savedItemOptions option').textContent, 'ទូរស័ព្ទ · iPhone 15');
+  document.getElementById('saveItemName').click();
+  assert.equal(JSON.parse(localStorage.getItem('pawn-kh-v1')).savedItems.length, 1, 'duplicate presets are rejected');
+  document.getElementById('closeModal').click();
+  document.getElementById('addLoan').click();
+  field('itemCategory').value = 'saved:0';
+  field('itemCategory').dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(field('itemDetails').value, 'iPhone 15');
+  field('customer').value = 'សុវណ្ណ';
+  field('amount').value = '100';
+  field('rate').value = '3';
+  field('start').value = '2026-10-20';
+  form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  const loan = JSON.parse(localStorage.getItem('pawn-kh-v1')).loans.at(-1);
+  assert.equal(loan.itemCategory, 'phone');
+  assert.equal(loan.item, 'ទូរស័ព្ទ · iPhone 15');
+});
+
+test('saved gold item presets require a fresh weight for each new pawn', () => {
+  const form = document.getElementById('loanForm');
+  const field = name => form.elements.namedItem(name);
+  document.getElementById('addLoan').click();
+  field('itemCategory').value = 'ring';
+  field('itemDetails').value = 'ចិញ្ចៀនមាស';
+  field('isGold').checked = true;
+  document.getElementById('saveItemName').click();
+  document.getElementById('closeModal').click();
+  document.getElementById('addLoan').click();
+  field('itemCategory').value = 'saved:1';
+  field('itemCategory').dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(field('isGold').checked, true);
+  assert.equal(field('goldWeight').required, true);
+  assert.equal(field('goldWeight').value, '');
+  document.getElementById('closeModal').click();
+});
+
 test('downloaded backup restores all records after browser storage is cleared', async () => {
   const originalCreateURL = URL.createObjectURL;
   const originalClick = window.HTMLAnchorElement.prototype.click;
@@ -153,11 +198,12 @@ test('downloaded backup restores all records after browser storage is cleared', 
     const saved = JSON.parse(backupText);
     assert.equal(saved.version, 3);
     assert.ok(saved.loans.length > 0);
+    assert.equal(saved.savedItems.length, 2);
     assert.equal(saved.loans.length, JSON.parse(localStorage.getItem('pawn-kh-v1')).loans.length);
 
     localStorage.clear();
     window.dispatchEvent(new window.StorageEvent('storage', { key: 'pawn-kh-v1' }));
-    assert.equal(document.getElementById('backupCount').textContent, '0 កិច្ចសន្យា');
+    assert.equal(document.getElementById('backupCount').textContent, '0 កិច្ចសន្យា · 0 ឈ្មោះទំនិញ');
     assert.equal(document.getElementById('importData').disabled, false);
     const input = document.getElementById('importFile');
     Object.defineProperty(input, 'files', { configurable: true, value: [{
@@ -166,7 +212,9 @@ test('downloaded backup restores all records after browser storage is cleared', 
     input.dispatchEvent(new window.Event('change'));
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.deepEqual(JSON.parse(localStorage.getItem('pawn-kh-v1')).loans, saved.loans);
-    assert.equal(document.getElementById('backupCount').textContent, `${saved.loans.length} កិច្ចសន្យា`);
+    assert.deepEqual(JSON.parse(localStorage.getItem('pawn-kh-v1')).savedItems, saved.savedItems);
+    assert.equal(document.getElementById('backupCount').textContent, `${saved.loans.length} កិច្ចសន្យា · 2 ឈ្មោះទំនិញ`);
+    assert.equal(document.querySelectorAll('#savedItemOptions option').length, 2);
   } finally {
     URL.createObjectURL = originalCreateURL;
     window.HTMLAnchorElement.prototype.click = originalClick;

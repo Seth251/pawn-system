@@ -8,6 +8,25 @@ export const ITEM_CATEGORIES = Object.freeze({
 });
 export const GOLD_UNITS = Object.freeze({ g: 'ក្រាម', chi: 'ជី', damlung: 'តម្លឹង' });
 export const ITEM_CONDITIONS = Object.freeze({ new: 'ថ្មី', good: 'ល្អ', used: 'បានប្រើ', damaged: 'ខូចខាត' });
+export function normalizeSavedItems(value = []) {
+  if (!Array.isArray(value) || value.length > 200) throw Error('បញ្ជីឈ្មោះទំនិញដែលបានរក្សាទុកមិនត្រឹមត្រូវ។');
+  const items = value.map(raw => {
+    if (!raw || typeof raw !== 'object' || typeof raw.itemDetails !== 'string' ||
+        typeof raw.isGold !== 'boolean' || !Object.hasOwn(ITEM_CATEGORIES, raw.category)) {
+      throw Error('បញ្ជីឈ្មោះទំនិញដែលបានរក្សាទុកមិនត្រឹមត្រូវ។');
+    }
+    const itemDetails = raw.itemDetails.trim();
+    const fullName = raw.category === 'other' ? itemDetails : `${ITEM_CATEGORIES[raw.category]} · ${itemDetails}`;
+    if (!itemDetails || itemDetails.length > 200 || fullName.length > 200 ||
+        (raw.category === 'gold' && !raw.isGold)) {
+      throw Error('ឈ្មោះទំនិញដែលបានរក្សាទុកមិនត្រឹមត្រូវ។');
+    }
+    return { category: raw.category, itemDetails, isGold: raw.isGold };
+  });
+  const keys = items.map(item => `${item.category}\0${item.itemDetails.toLocaleLowerCase()}\0${item.isGold}`);
+  if (new Set(keys).size !== keys.length) throw Error('មានឈ្មោះទំនិញដែលបានរក្សាទុកស្ទួនគ្នា។');
+  return items;
+}
 export function goldWeightText(loan) {
   if (!loan.isGold || !loan.goldWeightMilli) return '';
   return `${(loan.goldWeightMilli / 1000).toLocaleString('en-US', { maximumFractionDigits: 3 })} ${GOLD_UNITS[loan.goldUnit]}`;

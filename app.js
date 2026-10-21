@@ -1,7 +1,7 @@
 import { STORAGE_KEY, todayKH, validDate, monthlyCents, nextDue, unpaidMonths,
   interestPaid, interestDueAmount, principalRemaining,
   status, money, khDate, normalizeLoan, telegramURL, importBackup, telegramFromQR,
-  ITEM_CATEGORIES, ITEM_CONDITIONS, goldWeightText } from './core.mjs';
+  ITEM_CATEGORIES, ITEM_CONDITIONS, goldWeightText, normalizeSavedItems } from './core.mjs';
 
 const $ = id => document.getElementById(id);
 const control = (form, name) => form.elements.namedItem(name);
@@ -26,6 +26,7 @@ function showTotals(id, amounts) {
   }
 }
 let loans = [];
+let savedItems = [];
 let filter = 'active';
 let editingId = null;
 let paymentLoanId = null;
@@ -44,14 +45,17 @@ function load() {
     const valid = stored.loans.map(item => normalizeLoan(item));
     if (new Set(valid.map(l => l.id)).size !== valid.length) throw Error('Duplicate IDs');
     loans = valid;
+    try { savedItems = normalizeSavedItems(stored.savedItems ?? []); }
+    catch { savedItems = []; toast('បញ្ជីឈ្មោះទំនិញដែលបានរក្សាទុកមិនអាចអានបានទេ។'); }
   } catch {
     loans = [];
+    savedItems = [];
     toast('មិនអាចអានទិន្នន័យចាស់បានទេ។ សូមស្ដារឯកសារបម្រុងទុក។');
   }
 }
 function save() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 3, loans }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 3, loans, savedItems }));
     return true;
   } catch {
     toast('មិនអាចរក្សាទុកបានទេ។ សូមពិនិត្យកន្លែងផ្ទុកលើឧបករណ៍។');
@@ -60,16 +64,36 @@ function save() {
 }
 function commit(change) {
   const previous = structuredClone(loans);
+  const previousItems = structuredClone(savedItems);
   change();
-  if (!save()) { loans = previous; return false; }
+  if (!save()) { loans = previous; savedItems = previousItems; return false; }
+  renderSavedItems();
   render();
   return true;
 }
 
+function chosenItem() {
+  const value = control($('loanForm'), 'itemCategory').value;
+  return value.startsWith('saved:') ? savedItems[Number(value.slice(6))] : null;
+}
+function renderSavedItems() {
+  const select = control($('loanForm'), 'itemCategory');
+  const current = select.value;
+  const group = $('savedItemOptions');
+  group.replaceChildren();
+  savedItems.forEach((item, index) => {
+    const option = document.createElement('option');
+    option.value = `saved:${index}`;
+    option.textContent = `${item.isGold ? '◆ ' : ''}${item.category === 'other' ? '' : ITEM_CATEGORIES[item.category] + ' · '}${item.itemDetails}`;
+    group.append(option);
+  });
+  if (current) select.value = current;
+}
+
 function render() {
   const date = todayKH();
-  $('backupCount').textContent = `${loans.length} កិច្ចសន្យា`;
-  $('exportData').disabled = loans.length === 0;
+  $('backupCount').textContent = `${loans.length} កិច្ចសន្យា · ${savedItems.length} ឈ្មោះទំនិញ`;
+  $('exportData').disabled = loans.length === 0 && savedItems.length === 0;
   const active = loans.filter(l => !l.closedAt);
   const alerts = active.filter(l => ['overdue', 'today'].includes(status(l, date)));
   const overdue = alerts.filter(l => status(l, date) === 'overdue').length;
@@ -157,7 +181,7 @@ function previewInterest() {
 }
 function updateItemFields() {
   const form = $('loanForm');
-  const category = control(form, 'itemCategory').value;
+  const category = chosenItem()?.category ?? control(form, 'itemCategory').value;
   const gold = control(form, 'isGold');
   if (category === 'gold') gold.checked = true;
   gold.disabled = category === 'gold';
@@ -177,7 +201,9 @@ function openForm(loan = null) {
   form.reset();
   $('modalTitle').textContent = loan ? 'កែព័ត៌មានការបញ្ចាំ' : 'បន្ថែមការបញ្ចាំ';
   control(form, 'customer').value = loan?.customer ?? '';
-  control(form, 'itemCategory').value = loan?.itemCategory ?? '';
+  const savedIndex = loan ? savedItems.findIndex(item => item.category === loan.itemCategory &&
+    item.itemDetails === loan.itemDetails && item.isGold === loan.isGold) : -1;
+  control(form, 'itemCategory').value = savedIndex >= 0 ? `saved:${savedIndex}` : loan?.itemCategory ?? '';
   control(form, 'itemDetails').value = loan?.itemDetails ?? '';
   control(form, 'isGold').checked = !!loan?.isGold;
   control(form, 'goldWeight').value = loan?.goldWeightMilli ? String(loan.goldWeightMilli / 1000) : '';
@@ -434,10 +460,34 @@ $('loanForm').addEventListener('input', previewInterest);
 $('loanForm').addEventListener('change', event => {
   const form = $('loanForm');
   if (event.target === control(form, 'itemCategory')) {
-    if (event.target.value !== 'gold' && control(form, 'isGold').disabled) control(form, 'isGold').checked = false;
+    const preset = chosenItem();
+    if (preset) {
+      control(form, 'itemDetails').value = preset.itemDetails;
+      control(form, 'isGold').checked = preset.isGold;
+    } else if (event.target.value !== 'gold' && control(form, 'isGold').disabled) {
+      control(form, 'isGold').checked = false;
+    }
+    control(form, 'goldWeight').value = '';
     updateItemFields();
   }
   if (event.target === control(form, 'isGold')) updateItemFields();
+});
+$('saveItemName').addEventListener('click', () => {
+  const form = $('loanForm');
+  const category = chosenItem()?.category ?? control(form, 'itemCategory').value;
+  const itemDetails = control(form, 'itemDetails').value.trim();
+  if (!Object.hasOwn(ITEM_CATEGORIES, category) || !itemDetails) {
+    toast('សូមជ្រើសប្រភេទទំនិញ ហើយសរសេរឈ្មោះទំនិញមុនរក្សាទុក។');
+    return;
+  }
+  try {
+    const item = { category, itemDetails, isGold: category === 'gold' || control(form, 'isGold').checked };
+    const updated = normalizeSavedItems([...savedItems, item]);
+    if (commit(() => { savedItems = updated; })) {
+      control(form, 'itemCategory').value = `saved:${updated.length - 1}`;
+      toast('បានបន្ថែមឈ្មោះទំនិញទៅក្នុងបញ្ជីជ្រើសរើស។');
+    }
+  } catch (error) { toast(error.message); }
 });
 $('loanForm').addEventListener('submit', event => {
   event.preventDefault();
@@ -447,9 +497,9 @@ $('loanForm').addEventListener('submit', event => {
   const raw = {
     id: previous?.id ?? crypto.randomUUID(),
     customer: control(form, 'customer').value,
-    itemCategory: control(form, 'itemCategory').value,
+    itemCategory: chosenItem()?.category ?? control(form, 'itemCategory').value,
     itemDetails: control(form, 'itemDetails').value,
-    isGold: control(form, 'itemCategory').value === 'gold' || control(form, 'isGold').checked,
+    isGold: chosenItem()?.category === 'gold' || control(form, 'itemCategory').value === 'gold' || control(form, 'isGold').checked,
     goldWeightMilli: control(form, 'isGold').checked ? Math.round(Number(control(form, 'goldWeight').value) * 1000) : 0,
     goldUnit: control(form, 'isGold').checked ? control(form, 'goldUnit').value : null,
     itemCondition: control(form, 'itemCondition').value,
@@ -519,7 +569,7 @@ $('loanList').addEventListener('click', event => {
 $('exportData').addEventListener('click', () => {
   try {
     const exportedAt = new Date().toISOString();
-    const blob = new Blob([JSON.stringify({ version: 3, exportedAt, loans }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ version: 3, exportedAt, loans, savedItems }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -542,13 +592,15 @@ $('importFile').addEventListener('change', async event => {
     if (file.size > 10_000_000) throw Error('ឯកសារធំពេក។');
     const parsed = JSON.parse(await file.text());
     const restored = importBackup(parsed);
-    if (!confirm(`ឯកសារ «${file.name}» មាន ${restored.length} កិច្ចសន្យា។ ឧបករណ៍នេះមាន ${loans.length} កិច្ចសន្យា។\n\nការស្ដារនឹងជំនួសកំណត់ត្រាទាំងអស់នៅលើឧបករណ៍នេះ។ បើមានកំណត់ត្រាថ្មី សូមរក្សាទុកច្បាប់បម្រុងជាមុន។\n\nតើបន្តស្ដារឬទេ?`)) return;
-    if (commit(() => { loans = restored; })) toast(`បានស្ដារ ${restored.length} កិច្ចសន្យារួចរាល់។`);
+    const restoredItems = normalizeSavedItems(parsed.savedItems ?? []);
+    if (!confirm(`ឯកសារ «${file.name}» មាន ${restored.length} កិច្ចសន្យា និង ${restoredItems.length} ឈ្មោះទំនិញ។ ឧបករណ៍នេះមាន ${loans.length} កិច្ចសន្យា និង ${savedItems.length} ឈ្មោះទំនិញ។\n\nការស្ដារនឹងជំនួសកំណត់ត្រា និងបញ្ជីឈ្មោះទំនិញទាំងអស់នៅលើឧបករណ៍នេះ។ បើមានទិន្នន័យថ្មី សូមរក្សាទុកច្បាប់បម្រុងជាមុន។\n\nតើបន្តស្ដារឬទេ?`)) return;
+    if (commit(() => { loans = restored; savedItems = restoredItems; })) toast(`បានស្ដារ ${restored.length} កិច្ចសន្យា និង ${restoredItems.length} ឈ្មោះទំនិញរួចរាល់។`);
   } catch (error) { toast(error instanceof SyntaxError ? 'ឯកសារ JSON មិនត្រឹមត្រូវ។' : (error.message || 'មិនអាចស្ដារឯកសារនេះបានទេ។')); }
   finally { event.target.value = ''; }
 });
-window.addEventListener('storage', event => { if (event.key === STORAGE_KEY) { load(); render(); } });
+window.addEventListener('storage', event => { if (event.key === STORAGE_KEY) { load(); renderSavedItems(); render(); } });
 window.addEventListener('focus', render);
 load();
+renderSavedItems();
 render();
 setInterval(render, 60_000);

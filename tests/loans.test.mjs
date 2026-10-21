@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dueDate, monthlyCents, nextDue, unpaidMonths, status, normalizeLoan, reminder, telegramURL, telegramFromQR, importBackup, money, goldWeightText, interestDueAmount, principalRemaining } from '../core.mjs';
+import { dueDate, monthlyCents, nextDue, unpaidMonths, status, normalizeLoan, reminder, telegramURL, telegramFromQR, importBackup, money, goldWeightText, interestDueAmount, principalRemaining, normalizeSavedItems } from '../core.mjs';
 const base = { id: 'loan-1', customer: 'ដារ៉ា', item: 'ទូរស័ព្ទ', telegram: 'Dara_123', phone: '', notes: '', amountCents: 10000, rateBps: 300, start: '2026-07-20', payments: [], closedAt: null };
 test('3% monthly interest is $3 per $100, using cents', () => {
   assert.equal(monthlyCents(base), 300);
@@ -90,6 +90,17 @@ test('gold jewelry saves weight and unit through normalization and backup', () =
   assert.throws(() => normalizeLoan({ ...loan, goldWeightMilli: 0 }, '2026-10-20'));
   assert.throws(() => normalizeLoan({ ...loan, goldUnit: 'ounces' }, '2026-10-20'));
   assert.throws(() => normalizeLoan({ ...loan, itemCategory: 'unknown' }, '2026-10-20'));
+});
+test('saved item names validate their category, name, and gold flag', () => {
+  assert.deepEqual(normalizeSavedItems([{ category: 'ring', itemDetails: ' ចិញ្ចៀនមាស ', isGold: true }]),
+    [{ category: 'ring', itemDetails: 'ចិញ្ចៀនមាស', isGold: true }]);
+  assert.throws(() => normalizeSavedItems([{ category: 'unknown', itemDetails: 'កាមេរ៉ា', isGold: false }]));
+  assert.throws(() => normalizeSavedItems([{ category: 'other', itemDetails: '', isGold: false }]));
+  assert.throws(() => normalizeSavedItems([{ category: 'gold', itemDetails: 'ខ្សែក', isGold: false }]));
+  assert.throws(() => normalizeSavedItems([
+    { category: 'phone', itemDetails: 'iPhone', isGold: false },
+    { category: 'phone', itemDetails: 'IPHONE', isGold: false }
+  ]));
 });
 test('Telegram QR profile links become safe direct chat contacts', () => {
   assert.equal(telegramFromQR('https://t.me/Dara_123?profile'), 'Dara_123');
